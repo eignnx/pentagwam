@@ -2,17 +2,17 @@ use crate::defs::{Idx, Sym};
 
 pub union Cell {
     pub(crate) functor: Functor,
-    pub(crate) tagged: CellVal,
+    pub(crate) tagged: TaggedCell,
 }
 
-impl From<CellVal> for Cell {
-    fn from(tagged: CellVal) -> Self {
+impl From<TaggedCell> for Cell {
+    fn from(tagged: TaggedCell) -> Self {
         Self { tagged }
     }
 }
 
 #[derive(Debug, Clone, Copy)]
-pub enum CellVal {
+pub enum TaggedCell {
     /// A reference (usually represents a variable).
     Ref(Idx),
     /// A record with an index to its functor.
@@ -21,11 +21,11 @@ pub enum CellVal {
 
 impl Cell {
     pub fn r#ref(idx: impl Into<Idx>) -> Self {
-        CellVal::Ref(idx.into()).into()
+        TaggedCell::Ref(idx.into()).into()
     }
 
     pub fn rcd(idx: impl Into<Idx>) -> Self {
-        CellVal::Rcd(idx.into()).into()
+        TaggedCell::Rcd(idx.into()).into()
     }
 
     pub fn functor(functor: Functor) -> Self {
