@@ -1,6 +1,6 @@
 use crate::{
     cell::{Cell, CellVal, Functor},
-    defs::Idx,
+    defs::{Idx, Sym},
 };
 
 pub struct Mem {
@@ -27,8 +27,8 @@ impl Mem {
             }
             CellVal::Ref(r) => unsafe { self.write_tagged_cell(r, f) },
             CellVal::Rcd(start) => {
-                let Functor { id, arity } = unsafe { self.heap[start.0].functor };
-                let functor_name = &self.symbols[id];
+                let Functor { sym, arity } = unsafe { self.heap[start.0].functor };
+                let functor_name = sym.resolve(self);
                 write!(f, "{functor_name}(")?;
                 for arg_idx in 0..arity as usize {
                     if arg_idx != 0 {
@@ -44,50 +44,56 @@ impl Mem {
         }
     }
 
-    pub fn intern_sym(&mut self, sym: &str) -> usize {
-        if let Some(idx) = self.symbols.iter().position(|s| s == sym) {
-            idx
+    pub fn intern_sym(&mut self, text: impl AsRef<str>) -> Sym {
+        if let Some(idx) = self.symbols.iter().position(|s| s == text.as_ref()) {
+            Sym { idx }
         } else {
-            let idx = self.symbols.len();
-            self.symbols.push(sym.to_string());
-            idx
+            let sym = Sym {
+                idx: self.symbols.len(),
+            };
+            self.symbols.push(text.as_ref().to_string());
+            sym
         }
+    }
+
+    pub fn intern_functor(&mut self, name: impl AsRef<str>, arity: u8) -> Functor {
+        Functor {
+            sym: self.intern_sym(name),
+            arity,
+        }
+    }
+}
+
+impl Sym {
+    pub fn resolve<'a>(&self, mem: &'a Mem) -> &'a str {
+        &mem.symbols[self.idx]
     }
 }
 
 #[test]
 fn test_heap() {
-    let mut heap = Mem::new();
+    let mut mem = Mem::new();
 
-    let h2: Functor = Functor {
-        id: heap.intern_sym("h"),
-        arity: 2,
-    };
-    let f1: Functor = Functor {
-        id: heap.intern_sym("f"),
-        arity: 1,
-    };
-    let p3: Functor = Functor {
-        id: heap.intern_sym("p"),
-        arity: 3,
-    };
+    let h2 = mem.intern_functor("h", 2);
+    let f1 = mem.intern_functor("f", 1);
+    let p3 = mem.intern_functor("p", 3);
 
-    heap.heap = vec![
-        CellVal::Rcd(1.into()).into(), // 0
-        Cell { functor: h2 },          // 1
-        CellVal::Ref(2.into()).into(), // 2
-        CellVal::Ref(3.into()).into(), // 3
-        CellVal::Rcd(5.into()).into(), // 4
-        Cell { functor: f1 },          // 5
-        CellVal::Ref(3.into()).into(), // 6
-        CellVal::Rcd(8.into()).into(), // 7
-        Cell { functor: p3 },          // 8
-        CellVal::Ref(2.into()).into(), // 9
-        CellVal::Rcd(1.into()).into(), // 10
-        CellVal::Rcd(5.into()).into(), // 11
+    mem.heap = vec![
+        Cell::rcd(1),      // 0
+        Cell::functor(h2), // 1
+        Cell::r#ref(2),    // 2
+        Cell::r#ref(3),    // 3
+        Cell::rcd(5),      // 4
+        Cell::functor(f1), // 5
+        Cell::r#ref(3),    // 6
+        Cell::rcd(8),      // 7
+        Cell::functor(p3), // 8
+        Cell::r#ref(2),    // 9
+        Cell::rcd(1),      // 10
+        Cell::rcd(5),      // 11
     ];
 
     let mut s = Vec::<u8>::new();
-    unsafe { heap.write_tagged_cell(7.into(), &mut s).unwrap() };
+    unsafe { mem.write_tagged_cell(7.into(), &mut s).unwrap() };
     assert_eq!(String::from_utf8(s).unwrap(), "p(_2, h(_2, _3), f(_3))");
 }

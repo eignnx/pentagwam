@@ -12,3 +12,8 @@ impl From<Idx> for usize {
         idx.0
     }
 }
+
+#[derive(Debug, Clone, Copy, PartialEq, Eq, PartialOrd, Ord, Hash)]
+pub(crate) struct Sym {
+    pub(crate) idx: usize,
+}

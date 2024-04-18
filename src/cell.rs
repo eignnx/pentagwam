@@ -1,4 +1,4 @@
-use crate::defs::Idx;
+use crate::defs::{Idx, Sym};
 
 pub union Cell {
     pub(crate) functor: Functor,
@@ -19,8 +19,22 @@ pub enum CellVal {
     Rcd(Idx),
 }
 
+impl Cell {
+    pub fn r#ref(idx: impl Into<Idx>) -> Self {
+        CellVal::Ref(idx.into()).into()
+    }
+
+    pub fn rcd(idx: impl Into<Idx>) -> Self {
+        CellVal::Rcd(idx.into()).into()
+    }
+
+    pub fn functor(functor: Functor) -> Self {
+        Self { functor }
+    }
+}
+
 #[derive(Debug, Clone, Copy)]
 pub struct Functor {
-    pub id: usize,
+    pub sym: Sym,
     pub arity: u8,
 }
