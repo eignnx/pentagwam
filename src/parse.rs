@@ -39,10 +39,19 @@ pub fn parser(mem: Rc<RefCell<Mem>>) -> impl Parser<char, TaggedCell, Error = Si
                 TaggedCell::Rcd(functor_idx)
             });
 
+        let var_or_sym = chumsky::text::ident().validate(move |id: String, _span, _emit_err| {
+            let mem = mem.clone();
+            if id.chars().next().unwrap().is_ascii_uppercase() {
+                TaggedCell::Ref(mem.borrow_mut().push_var())
+            } else {
+                TaggedCell::Sym(mem.borrow_mut().intern_sym(id))
+            }
+        });
+
         let atomic = int
             .or(term.delimited_by(just('('), just(')')))
             .or(record)
-            .or(sym.map(TaggedCell::Sym))
+            .or(var_or_sym)
             .padded();
 
         // let op = |c| just(c).padded();
@@ -77,38 +86,6 @@ pub fn parser(mem: Rc<RefCell<Mem>>) -> impl Parser<char, TaggedCell, Error = Si
     });
 
     term
-
-    // let decl = recursive(|decl| {
-    //     let r#let = text::ascii::keyword("let")
-    //         .ignore_then(ident)
-    //         .then_ignore(just('='))
-    //         .then(expr.clone())
-    //         .then_ignore(just(';'))
-    //         .then(decl.clone())
-    //         .map(|((name, rhs), then)| Expr::Let {
-    //             name,
-    //             rhs: Box::new(rhs),
-    //             then: Box::new(then),
-    //         });
-
-    //     let r#fn = text::ascii::keyword("fn")
-    //         .ignore_then(ident)
-    //         .then(ident.repeated().collect::<Vec<_>>())
-    //         .then_ignore(just('='))
-    //         .then(expr.clone())
-    //         .then_ignore(just(';'))
-    //         .then(decl)
-    //         .map(|(((name, args), body), then)| Expr::Fn {
-    //             name,
-    //             args,
-    //             body: Box::new(body),
-    //             then: Box::new(then),
-    //         });
-
-    //     r#let.or(r#fn).or(expr).padded()
-    // });
-
-    // decl
 }
 
 #[test]

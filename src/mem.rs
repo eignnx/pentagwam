@@ -1,4 +1,5 @@
 use core::fmt;
+use std::collections::HashMap;
 
 use crate::{
     cell::{Cell, Functor, TaggedCell},
@@ -8,6 +9,7 @@ use crate::{
 pub struct Mem {
     pub(crate) heap: Vec<Cell>,
     pub(crate) symbols: Vec<String>,
+    pub(crate) var_names: HashMap<Idx, Sym>,
 }
 
 impl Mem {
@@ -15,6 +17,7 @@ impl Mem {
         Self {
             heap: Vec::new(),
             symbols: Vec::new(),
+            var_names: HashMap::new(),
         }
     }
 
@@ -48,6 +51,17 @@ impl Mem {
     pub fn push(&mut self, cell: impl Into<Cell>) -> Idx {
         let idx = self.heap.len().into();
         self.heap.push(cell.into());
+        idx
+    }
+
+    /// Will intern a new variable name and return the index of the new variable
+    /// or lookup an existing variable name and return the index of the existing
+    /// variable.
+    pub fn push_var(&mut self, name: &str) -> Idx {
+        let x = self.intern_sym(name); ////////////////
+        let idx = self.heap.len().into();
+        self.var_names.insert(idx, ..);
+        self.heap.push(TaggedCell::Ref(idx).into());
         idx
     }
 
