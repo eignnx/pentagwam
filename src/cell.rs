@@ -1,5 +1,6 @@
 use crate::defs::{Idx, Sym};
 
+#[repr(C)]
 pub union Cell {
     pub(crate) functor: Functor,
     pub(crate) tagged: TaggedCell,
@@ -17,6 +18,10 @@ pub enum TaggedCell {
     Ref(Idx),
     /// A record with an index to its functor.
     Rcd(Idx),
+    /// An integer.
+    Int(i32),
+    /// A symbol.
+    Sym(Sym),
 }
 
 impl Cell {
@@ -31,9 +36,17 @@ impl Cell {
     pub fn functor(functor: Functor) -> Self {
         Self { functor }
     }
+
+    pub fn int(int: i32) -> Self {
+        TaggedCell::Int(int).into()
+    }
+
+    pub fn sym(sym: Sym) -> Self {
+        TaggedCell::Sym(sym).into()
+    }
 }
 
-#[derive(Debug, Clone, Copy)]
+#[derive(Debug, Clone, Copy, PartialEq, Eq, PartialOrd, Ord, Hash)]
 pub struct Functor {
     pub sym: Sym,
     pub arity: u8,

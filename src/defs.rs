@@ -31,6 +31,22 @@ impl Idx {
     }
 }
 
+impl std::ops::Add<Idx> for Idx {
+    type Output = Idx;
+
+    fn add(self, rhs: Idx) -> Self::Output {
+        (self.0 + rhs.0).into()
+    }
+}
+
+impl std::ops::Add<usize> for Idx {
+    type Output = Idx;
+
+    fn add(self, rhs: usize) -> Self::Output {
+        (self.0 + rhs as u32).into()
+    }
+}
+
 #[derive(Debug, Clone, Copy, PartialEq, Eq, PartialOrd, Ord, Hash)]
 pub(crate) struct Sym {
     pub(crate) idx: Index,
