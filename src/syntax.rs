@@ -47,7 +47,7 @@ impl Syntax {
                 .or_not()
                 .then(text::int(10))
                 .labelled("int")
-                .map(|(sign, digits): (_, String)| {
+                .map(|(sign, digits): (Option<_>, String)| {
                     let sign = if sign.is_some() { -1 } else { 1 };
                     let number = sign * digits.parse::<i32>().unwrap();
                     Syntax::Int(number)
