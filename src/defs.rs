@@ -1,35 +1,35 @@
-type Index = u32;
+type UInt = u32;
 
 #[derive(Debug, Clone, Copy, PartialEq, Eq, PartialOrd, Ord, Hash)]
-pub struct Idx(Index);
+pub struct CellRef(UInt);
 
-impl std::fmt::Display for Idx {
+impl std::fmt::Display for CellRef {
     fn fmt(&self, f: &mut std::fmt::Formatter<'_>) -> std::fmt::Result {
         write!(f, "@{}", self.0)
     }
 }
 
-impl From<usize> for Idx {
-    fn from(idx: usize) -> Self {
-        Self(idx.try_into().unwrap())
+impl From<usize> for CellRef {
+    fn from(n: usize) -> Self {
+        Self(n.try_into().unwrap())
     }
 }
 
-impl From<i32> for Idx {
-    fn from(idx: i32) -> Self {
-        Self(idx.try_into().unwrap())
+impl From<i32> for CellRef {
+    fn from(n: i32) -> Self {
+        Self(n.try_into().unwrap())
     }
 }
 
-impl From<Index> for Idx {
-    fn from(idx: Index) -> Self {
-        Self(idx)
+impl From<UInt> for CellRef {
+    fn from(n: UInt) -> Self {
+        Self(n)
     }
 }
 
-impl Idx {
-    pub fn new(idx: usize) -> Self {
-        idx.into()
+impl CellRef {
+    pub fn new(n: usize) -> Self {
+        n.into()
     }
 
     pub fn usize(self) -> usize {
@@ -37,16 +37,16 @@ impl Idx {
     }
 }
 
-impl std::ops::Add<Idx> for Idx {
-    type Output = Idx;
+impl std::ops::Add<CellRef> for CellRef {
+    type Output = CellRef;
 
-    fn add(self, rhs: Idx) -> Self::Output {
+    fn add(self, rhs: CellRef) -> Self::Output {
         (self.0 + rhs.0).into()
     }
 }
 
-impl std::ops::Add<usize> for Idx {
-    type Output = Idx;
+impl std::ops::Add<usize> for CellRef {
+    type Output = CellRef;
 
     fn add(self, rhs: usize) -> Self::Output {
         (self.0 + rhs as u32).into()
@@ -54,11 +54,11 @@ impl std::ops::Add<usize> for Idx {
 }
 
 #[derive(Debug, Clone, Copy, PartialEq, Eq, PartialOrd, Ord, Hash)]
-pub struct Sym(Index);
+pub struct Sym(UInt);
 
 impl Sym {
-    pub fn new(idx: usize) -> Self {
-        Self(idx.try_into().unwrap())
+    pub fn new(n: usize) -> Self {
+        Self(n.try_into().unwrap())
     }
 
     pub fn usize(&self) -> usize {

@@ -1,6 +1,6 @@
 use chumsky::prelude::*;
 
-use crate::{cell::Cell, defs::Idx, mem::Mem};
+use crate::{cell::Cell, defs::CellRef, mem::Mem};
 
 #[derive(Debug, Clone, PartialEq, Eq, PartialOrd, Ord, Hash)]
 pub enum Syntax {
@@ -12,7 +12,7 @@ pub enum Syntax {
 }
 
 impl Syntax {
-    pub fn serialize(&self, mem: &mut Mem) -> Idx {
+    pub fn serialize(&self, mem: &mut Mem) -> CellRef {
         match self {
             Syntax::Int(i) => mem.push(Cell::Int(*i)),
             Syntax::Sym(name) => {
@@ -22,18 +22,18 @@ impl Syntax {
             Syntax::NamedVar(name) => mem.push_var(name),
             Syntax::FreshVar => mem.push_fresh_var(),
             Syntax::Record(functor, args) => {
-                let functor_idx = (mem.heap.len() + 1).into();
-                let rcd_idx = mem.push(Cell::Rcd(functor_idx));
+                let functor_ref = (mem.heap.len() + 1).into();
+                let rcd_ref = mem.push(Cell::Rcd(functor_ref));
                 let interned_functor = mem.intern_functor(functor, args.len() as u8);
-                let functor_idx_actual = mem.push(Cell::Sig(interned_functor));
-                debug_assert_eq!(functor_idx_actual, functor_idx);
+                let functor_ref_actual = mem.push(Cell::Sig(interned_functor));
+                debug_assert_eq!(functor_ref_actual, functor_ref);
 
                 for arg in args {
                     arg.serialize(mem);
                 }
 
                 // Return the index to the record cell.
-                rcd_idx
+                rcd_ref
             }
         }
     }

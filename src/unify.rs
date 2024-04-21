@@ -1,8 +1,8 @@
-use crate::{cell::Cell, defs::Idx, mem::Mem};
+use crate::{cell::Cell, defs::CellRef, mem::Mem};
 
-pub fn unify(mem: &mut Mem, t1_idx: Idx, t2_idx: Idx) -> bool {
-    let (t1_idx, t1) = mem.follow_refs_with_idx(t1_idx);
-    let (t2_idx, t2) = mem.follow_refs_with_idx(t2_idx);
+pub fn unify(mem: &mut Mem, t1_ref: CellRef, t2_ref: CellRef) -> bool {
+    let (t1_ref, t1) = mem.resolve_ref_to_ref_and_cell(t1_ref);
+    let (t2_ref, t2) = mem.resolve_ref_to_ref_and_cell(t2_ref);
 
     // Step 1: ensure cell types match.
     match (t1, t2) {
@@ -13,49 +13,49 @@ pub fn unify(mem: &mut Mem, t1_idx: Idx, t2_idx: Idx) -> bool {
         (Cell::Int(i1), Cell::Int(i2)) => i1 == i2,
         (Cell::Sym(s1), Cell::Sym(s2)) => s1 == s2,
         // Two unbound variables:
-        (Cell::Ref(idx1), Cell::Ref(idx2)) => {
+        (Cell::Ref(ref1), Cell::Ref(ref2)) => {
             tracing::trace!(
                 "unifying var `{}` and var `{}`",
-                mem.human_readable_var_name(idx1),
-                mem.human_readable_var_name(idx2),
+                mem.human_readable_var_name(ref1),
+                mem.human_readable_var_name(ref2),
             );
             // Make t1 point to t2 (arbitrary choice).
-            mem.cell_write(t1_idx, Cell::Ref(t2_idx));
+            mem.cell_write(t1_ref, Cell::Ref(t2_ref));
             // TODO: record variable binding in trail.
             true
         }
-        (Cell::Ref(idx), concrete) => {
+        (Cell::Ref(r), concrete) => {
             tracing::trace!(
                 "unifying var `{}` and concrete `{}`",
-                mem.human_readable_var_name(idx),
+                mem.human_readable_var_name(r),
                 mem.display_cell(concrete),
             );
             // Make the var point to the concrete value.
-            mem.cell_write(t1_idx, Cell::Ref(t2_idx));
+            mem.cell_write(t1_ref, Cell::Ref(t2_ref));
             // TODO: record variable binding in trail.
             true
         }
-        (concrete, Cell::Ref(idx)) => {
+        (concrete, Cell::Ref(r)) => {
             tracing::trace!(
                 "unifying concrete `{}` and var `{}`",
                 mem.display_cell(concrete),
-                mem.human_readable_var_name(idx),
+                mem.human_readable_var_name(r),
             );
             // Make the var point to the concrete value.
-            mem.cell_write(t2_idx, Cell::Ref(t1_idx));
+            mem.cell_write(t2_ref, Cell::Ref(t1_ref));
             // TODO: record variable binding in trail.
             true
         }
-        (Cell::Rcd(f_idx1), Cell::Rcd(f_idx2)) => {
+        (Cell::Rcd(f1_ref), Cell::Rcd(f2_ref)) => {
             // Step 2: ensure functors match.
 
-            let Cell::Sig(f1) = mem.cell_read(f_idx1) else {
-                tracing::warn!("expected functor cell at index {f_idx1}");
+            let Cell::Sig(f1) = mem.cell_read(f1_ref) else {
+                tracing::warn!("expected functor cell at index {f1_ref}");
                 return false;
             };
 
-            let Cell::Sig(f2) = mem.cell_read(f_idx2) else {
-                tracing::warn!("expected functor cell at index {f_idx2}");
+            let Cell::Sig(f2) = mem.cell_read(f2_ref) else {
+                tracing::warn!("expected functor cell at index {f2_ref}");
                 return false;
             };
 
@@ -71,14 +71,14 @@ pub fn unify(mem: &mut Mem, t1_idx: Idx, t2_idx: Idx) -> bool {
             }
 
             // Add 1 to skip past the functor cell.
-            let base1 = f_idx1 + 1;
-            let base2 = f_idx2 + 1;
+            let base1 = f1_ref + 1;
+            let base2 = f2_ref + 1;
 
             // Step 3: unify arguments.
             for i in 0..f1.arity as usize {
-                let arg1_idx = base1 + i;
-                let arg2_idx = base2 + i;
-                if !unify(mem, arg1_idx, arg2_idx) {
+                let arg1_ref = base1 + i;
+                let arg2_ref = base2 + i;
+                if !unify(mem, arg1_ref, arg2_ref) {
                     return false;
                 }
             }

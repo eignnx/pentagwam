@@ -1,11 +1,11 @@
-use crate::defs::{Idx, Sym};
+use crate::defs::{CellRef, Sym};
 
 #[derive(Debug, Clone, Copy, PartialEq, Eq, PartialOrd, Ord, Hash)]
 pub enum Cell {
     /// A reference (usually represents a variable).
-    Ref(Idx),
+    Ref(CellRef),
     /// A record with an index to its functor.
-    Rcd(Idx),
+    Rcd(CellRef),
     /// An integer.
     Int(i32),
     /// A symbol.
