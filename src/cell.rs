@@ -1,19 +1,7 @@
 use crate::defs::{Idx, Sym};
 
-#[repr(C)]
-pub union Cell {
-    pub(crate) functor: Functor,
-    pub(crate) tagged: TaggedCell,
-}
-
-impl From<TaggedCell> for Cell {
-    fn from(tagged: TaggedCell) -> Self {
-        Self { tagged }
-    }
-}
-
-#[derive(Debug, Clone, Copy)]
-pub enum TaggedCell {
+#[derive(Debug, Clone, Copy, PartialEq, Eq, PartialOrd, Ord, Hash)]
+pub enum Cell {
     /// A reference (usually represents a variable).
     Ref(Idx),
     /// A record with an index to its functor.
@@ -22,27 +10,19 @@ pub enum TaggedCell {
     Int(i32),
     /// A symbol.
     Sym(Sym),
+    /// The identifier of a functor.
+    Sig(Functor),
 }
 
-impl Cell {
-    pub fn r#ref(idx: impl Into<Idx>) -> Self {
-        TaggedCell::Ref(idx.into()).into()
-    }
-
-    pub fn rcd(idx: impl Into<Idx>) -> Self {
-        TaggedCell::Rcd(idx.into()).into()
-    }
-
-    pub fn functor(functor: Functor) -> Self {
-        Self { functor }
-    }
-
-    pub fn int(int: i32) -> Self {
-        TaggedCell::Int(int).into()
-    }
-
-    pub fn sym(sym: Sym) -> Self {
-        TaggedCell::Sym(sym).into()
+impl std::fmt::Display for Cell {
+    fn fmt(&self, f: &mut std::fmt::Formatter<'_>) -> std::fmt::Result {
+        match self {
+            Cell::Ref(idx) => write!(f, "Ref({})", idx),
+            Cell::Rcd(idx) => write!(f, "Rcd({})", idx),
+            Cell::Int(i) => write!(f, "Int({})", i),
+            Cell::Sym(sym) => write!(f, "Sym({})", sym),
+            Cell::Sig(functor) => write!(f, "Sig({})", functor),
+        }
     }
 }
 
@@ -50,4 +30,10 @@ impl Cell {
 pub struct Functor {
     pub sym: Sym,
     pub arity: u8,
+}
+
+impl std::fmt::Display for Functor {
+    fn fmt(&self, f: &mut std::fmt::Formatter<'_>) -> std::fmt::Result {
+        write!(f, "{:?}/{}", self.sym, self.arity)
+    }
 }

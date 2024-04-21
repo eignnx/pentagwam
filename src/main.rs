@@ -5,10 +5,17 @@
     clippy::default_union_representation
 )]
 
-mod cell;
-mod defs;
-mod mem;
-mod parse;
-mod unify;
+pub mod cell;
+pub mod defs;
+pub mod mem;
+pub mod syntax;
+pub mod unify;
 
-fn main() {}
+fn main() {
+    // use tracing_subscriber::{fmt, prelude::*, EnvFilter};
+    // // Set up tracing_subscriber to log to stdout.
+    // tracing_subscriber::registry()
+    //     .with(fmt::layer())
+    //     .with(EnvFilter::from_env("LOG_LEVEL"))
+    //     .init();
+}

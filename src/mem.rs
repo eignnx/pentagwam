@@ -1,15 +1,19 @@
-use core::fmt;
-use std::collections::HashMap;
+use core::{fmt, panic};
+use std::{borrow::Cow, collections::BTreeMap};
+
+use tracing::instrument;
 
 use crate::{
-    cell::{Cell, Functor, TaggedCell},
+    cell::{Cell, Functor},
     defs::{Idx, Sym},
 };
 
 pub struct Mem {
     pub(crate) heap: Vec<Cell>,
+    /// Interned symbols.
     pub(crate) symbols: Vec<String>,
-    pub(crate) var_names: HashMap<Idx, Sym>,
+    /// Maps variable names to their index in the heap.
+    pub(crate) var_indices: BTreeMap<Sym, Idx>,
 }
 
 impl Mem {
@@ -17,18 +21,18 @@ impl Mem {
         Self {
             heap: Vec::new(),
             symbols: Vec::new(),
-            var_names: HashMap::new(),
+            var_indices: BTreeMap::new(),
         }
     }
 
     /// Create a value which can be displayed representing the term stored at
     /// index `idx`.
-    ///
-    /// # Safety
-    /// A **tagged** cell must exist at the given index. That is, the cell must
-    /// contain a `Cell::tagged` variant.
-    pub unsafe fn display_tagged_cell(&self, idx: Idx) -> DisplayTaggedCell {
-        DisplayTaggedCell { idx, mem: self }
+    pub fn display_term(&self, idx: Idx) -> DisplayTerm {
+        DisplayTerm { idx, mem: self }
+    }
+
+    pub(crate) fn display_cell(&self, cell: Cell) -> DisplayCell {
+        DisplayCell { cell, mem: self }
     }
 
     pub fn intern_sym(&mut self, text: impl AsRef<str>) -> Sym {
@@ -48,121 +52,136 @@ impl Mem {
         }
     }
 
-    pub fn push(&mut self, cell: impl Into<Cell>) -> Idx {
+    pub fn push(&mut self, cell: Cell) -> Idx {
         let idx = self.heap.len().into();
-        self.heap.push(cell.into());
+        tracing::trace!(
+            "pushing cell `{}` into index {idx}",
+            self.display_cell(cell)
+        );
+        self.heap.push(cell);
         idx
     }
 
-    /// Will intern a new variable name and return the index of the new variable
-    /// or lookup an existing variable name and return the index of the existing
-    /// variable.
+    pub fn var_name_from_idx(&self, idx: Idx) -> Option<Sym> {
+        self.var_indices
+            .iter()
+            .find_map(|(sym, i)| (*i == idx).then_some(*sym))
+    }
+
+    pub fn var_idx_from_sym(&self, name: Sym) -> Option<Idx> {
+        self.var_indices.get(&name).copied()
+    }
+
+    pub fn human_readable_var_name(&self, idx: Idx) -> Cow<str> {
+        if let Some(sym) = self.var_name_from_idx(idx) {
+            sym.resolve(self).into()
+        } else {
+            format!("_{}", idx.usize()).into()
+        }
+    }
+
+    /// If the name is already associated with a variable, return the index of
+    /// that variable. Otherwise, intern the name and push a variable with that
+    /// name onto the heap. Return it's index.
+    #[instrument(level = "trace", skip(self), ret)]
     pub fn push_var(&mut self, name: &str) -> Idx {
-        let x = self.intern_sym(name); ////////////////
+        let sym = self.intern_sym(name);
+        // This is either a new index or the index of the existing variable.
+        let var_idx = *self
+            .var_indices
+            .entry(sym)
+            .or_insert_with(|| self.heap.len().into());
+        self.heap.push(Cell::Ref(var_idx));
+        self.var_indices.insert(sym, var_idx);
+        var_idx
+    }
+
+    /// Create a fresh variable and return its index. Do not associate a name
+    /// with the variable.
+    #[instrument(level = "trace", skip(self), ret)]
+    pub fn push_fresh_var(&mut self) -> Idx {
         let idx = self.heap.len().into();
-        self.var_names.insert(idx, ..);
-        self.heap.push(TaggedCell::Ref(idx).into());
+        self.heap.push(Cell::Ref(idx));
         idx
     }
 
-    /// # Safety
-    /// The caller must guaruntee that the cell at the given index is a tagged
-    /// cell.
-    pub unsafe fn tagged_cell(&self, idx: Idx) -> TaggedCell {
-        // SAFETY: Guarunteed by function precondition.
-        unsafe { self.heap[idx.usize()].tagged }
+    pub fn cell_read(&self, idx: impl Into<Idx>) -> Cell {
+        self.heap[idx.into().usize()]
     }
 
-    pub fn cell_write(&mut self, idx: Idx, cell: impl Into<Cell>) {
-        self.heap[idx.usize()] = cell.into();
-    }
-
-    /// # Safety
-    /// The caller must guaruntee that the cell at the given index is a
-    /// `Cell.functor` variant.
-    pub unsafe fn functor_cell(&self, idx: Idx) -> Functor {
-        // SAFETY: Guarunteed by function precondition.
-        unsafe { self.heap[idx.usize()].functor }
+    pub fn cell_write(&mut self, idx: Idx, cell: Cell) {
+        tracing::trace!("HEAP[{idx}] <- {}", self.display_cell(cell));
+        self.heap[idx.usize()] = cell;
     }
 
     /// Follow references until a concrete value is found.
-    pub fn follow_ref(&self, tagged_cell: TaggedCell) -> TaggedCell {
-        let (_idx, tagged) = self.follow_ref_with_idx(tagged_cell);
+    #[instrument(level = "trace", skip(self), ret)]
+    pub fn follow_refs(&self, cell_idx: Idx) -> Cell {
+        let (_idx, tagged) = self.follow_refs_with_idx(cell_idx);
         tagged
-    }
-
-    /// Follow references until a concrete value is found. Also returns the
-    /// found cell's index.
-    pub fn follow_ref_with_idx(&self, tagged_cell: TaggedCell) -> (Idx, TaggedCell) {
-        match tagged_cell {
-            TaggedCell::Ref(r) => {
-                // SAFETY: A `TaggedCell::Ref` is guaranteed to point to a
-                // tagged cell because the serialization format guarantees that
-                // a `Ref` always points to a tagged cell.
-                unsafe { self.follow_ref_idx(r) }
-            }
-            other => (Idx::new(0), other),
-        }
     }
 
     /// Follow references until a concrete value is found. Returns the index of
     /// the concrete value and the concrete value itself.
-    ///
-    /// # Safety
-    /// The caller must guaruntee that the cell at the given index is a tagged
-    /// cell.
-    pub unsafe fn follow_ref_idx(&self, mut tagged_cell_idx: Idx) -> (Idx, TaggedCell) {
+    #[instrument(level = "trace", skip(self), ret)]
+    pub fn follow_refs_with_idx(&self, mut cell_idx: Idx) -> (Idx, Cell) {
         loop {
-            // SAFETY: Assuming a valid serialization of the value being
-            // represented, a `Ref` is guaranteed to point to a tagged cell.
-            match unsafe { self.tagged_cell(tagged_cell_idx) } {
-                this @ TaggedCell::Ref(next) if next == tagged_cell_idx => {
+            match self.heap[cell_idx.usize()] {
+                this @ Cell::Ref(next) if next == cell_idx => {
                     // Unbound variable, just return
-                    return (tagged_cell_idx, this);
+                    return (cell_idx, this);
                 }
-                TaggedCell::Ref(next) => {
+                Cell::Ref(next) => {
                     // It's a reference that points somewhere new, follow it.
-                    tagged_cell_idx = next;
+                    cell_idx = next;
                 }
                 // If it's not a reference, it's a concrete value.
-                other => return (tagged_cell_idx, other),
+                other => return (cell_idx, other),
             }
         }
+    }
+}
+
+impl Default for Mem {
+    fn default() -> Self {
+        Self::new()
     }
 }
 
 impl Sym {
     pub fn resolve<'a>(&self, mem: &'a Mem) -> &'a str {
-        &mem.symbols[self.idx as usize]
+        &mem.symbols[self.usize()]
     }
 }
 
-pub struct DisplayTaggedCell<'a> {
+pub struct DisplayTerm<'a> {
     idx: Idx,
     mem: &'a Mem,
 }
 
-impl std::fmt::Display for DisplayTaggedCell<'_> {
+impl std::fmt::Display for DisplayTerm<'_> {
     fn fmt(&self, f: &mut fmt::Formatter<'_>) -> fmt::Result {
-        // SAFETY: By constructing a `DisplayTaggedCell` with a valid index, the
-        // cell at that index is guaranteed by the constructor's caller to be a
-        // tagged cell.
-        match unsafe { self.mem.heap[self.idx.usize()].tagged } {
-            TaggedCell::Int(i) => write!(f, "{i}"),
-            TaggedCell::Sym(sym) => write!(f, "{}", sym.resolve(self.mem)),
-            TaggedCell::Ref(r) if r == self.idx => {
-                write!(f, "_{}", self.idx.usize())
+        match self.mem.cell_read(self.idx) {
+            Cell::Int(i) => write!(f, "{i}"),
+            Cell::Sym(sym) => write!(f, "{}", sym.resolve(self.mem)),
+            Cell::Sig(functor) => {
+                write!(f, "<{}/{}>", functor.sym.resolve(self.mem), functor.arity)
             }
-            TaggedCell::Ref(r) => {
-                // SAFETY: Assuming a valid serialization of the value being
-                // represented, a `Ref` is guaranteed to point to a tagged cell.
-                write!(f, "{}", unsafe { self.mem.display_tagged_cell(r) })
+            Cell::Ref(r) if r == self.idx => {
+                if let Some(sym) = self.mem.var_name_from_idx(self.idx) {
+                    write!(f, "{}", sym.resolve(self.mem))
+                } else {
+                    write!(f, "_{}", self.idx.usize())
+                }
             }
-            TaggedCell::Rcd(start) => {
-                // SAFETY:
-                // The cell at `start` contains a `Cell::functor` variant by
-                // definition of the serialization format.
-                let Functor { sym, arity } = unsafe { self.mem.heap[start.usize()].functor };
+            Cell::Ref(r) => write!(f, "{}", self.mem.display_term(r)),
+            Cell::Rcd(start) => {
+                let Cell::Sig(Functor { sym, arity }) = self.mem.cell_read(start) else {
+                    panic!(
+                        "expected a functor at index {start} but found {:?}",
+                        self.mem.cell_read(start)
+                    );
+                };
                 let functor_name = sym.resolve(self.mem);
                 write!(f, "{functor_name}(")?;
                 for arg_idx in 0..arity as usize {
@@ -171,14 +190,33 @@ impl std::fmt::Display for DisplayTaggedCell<'_> {
                     }
                     let base = start.usize() + 1; // Skip functor.
                     let arg_idx = Idx::new(base + arg_idx);
-                    // SAFETY: Assuming a valid serialization of the value
-                    // being represented, the next `arity` cells are
-                    // guaranteed to be tagged cells.
-                    write!(f, "{}", unsafe { self.mem.display_tagged_cell(arg_idx) })?;
+                    write!(f, "{}", self.mem.display_term(arg_idx))?;
                 }
                 write!(f, ")")?;
                 Ok(())
             }
+        }
+    }
+}
+
+pub(crate) struct DisplayCell<'a> {
+    cell: Cell,
+    mem: &'a Mem,
+}
+
+impl std::fmt::Display for DisplayCell<'_> {
+    fn fmt(&self, f: &mut fmt::Formatter<'_>) -> fmt::Result {
+        match self.cell {
+            Cell::Sym(sym) => write!(f, "Sym({})", sym.resolve(self.mem)),
+            Cell::Sig(functor) => {
+                write!(
+                    f,
+                    "Sig({}/{})",
+                    functor.sym.resolve(self.mem),
+                    functor.arity
+                )
+            }
+            Cell::Int(..) | Cell::Ref(..) | Cell::Rcd(..) => write!(f, "{}", self.cell),
         }
     }
 }
@@ -192,22 +230,21 @@ fn test_heap() {
     let p3 = mem.intern_functor("p", 3);
 
     mem.heap = vec![
-        Cell::rcd(1),      // 0
-        Cell::functor(h2), // 1
-        Cell::r#ref(2),    // 2
-        Cell::r#ref(3),    // 3
-        Cell::rcd(5),      // 4
-        Cell::functor(f1), // 5
-        Cell::r#ref(3),    // 6
-        Cell::rcd(8),      // 7
-        Cell::functor(p3), // 8
-        Cell::r#ref(2),    // 9
-        Cell::rcd(1),      // 10
-        Cell::rcd(5),      // 11
+        Cell::Rcd(1.into()), // 0
+        Cell::Sig(h2),       // 1
+        Cell::Ref(2.into()), // 2
+        Cell::Ref(3.into()), // 3
+        Cell::Rcd(5.into()), // 4
+        Cell::Sig(f1),       // 5
+        Cell::Ref(3.into()), // 6
+        Cell::Rcd(8.into()), // 7
+        Cell::Sig(p3),       // 8
+        Cell::Ref(2.into()), // 9
+        Cell::Rcd(1.into()), // 10
+        Cell::Rcd(5.into()), // 11
     ];
 
-    // SAFETY: The cell at index 7 is a tagged cell.
-    let s = unsafe { mem.display_tagged_cell(7.into()) };
+    let s = mem.display_term(7.into());
     assert_eq!(s.to_string(), "p(_2, h(_2, _3), f(_3))");
 }
 
@@ -219,38 +256,40 @@ fn unify_two_values() {
 
     mem.heap = vec![
         // Build term t1: `f(_1)`
-        Cell::rcd(1),      // 0
-        Cell::functor(f1), // 1
-        Cell::r#ref(2),    // 2
-        // Build term t2: `f(123)`
-        Cell::rcd(4),      // 3
-        Cell::functor(f1), // 4
-        Cell::int(123),    // 5
+        Cell::Rcd(1.into()), // 0
+        Cell::Sig(f1),       // 1
+        Cell::Ref(2.into()), // 2
+        //  Build term t2: `f(123)`
+        Cell::Rcd(4.into()), // 3
+        Cell::Sig(f1),       // 4
+        Cell::Int(123),      // 5
     ];
 
-    let t1 = Idx::new(0);
-    let t2 = Idx::new(3);
+    let t1_idx = Idx::new(0);
+    let t2_idx = Idx::new(3);
 
-    // SAFETY: The cell at index `t1` IS a tagged cell.
-    let t1 = unsafe { mem.tagged_cell(t1) };
-    // SAFETY: The cell at index `t2` IS a tagged cell.
-    let t2 = unsafe { mem.tagged_cell(t2) };
-
-    let (t1_idx, t1) = mem.follow_ref_with_idx(t1);
-    let (t2_idx, t2) = mem.follow_ref_with_idx(t2);
+    let t1 = mem.follow_refs(t1_idx);
+    let t2 = mem.follow_refs(t2_idx);
 
     // Step 1: ensure cell types match.
     match (t1, t2) {
-        (TaggedCell::Rcd(idx1), TaggedCell::Rcd(idx2)) => {
+        (Cell::Rcd(idx1), Cell::Rcd(idx2)) => {
             // Step 2: ensure functors match.
 
-            // SAFETY: Since `t1` was a tagged cell, the cell at `idx1` is a
-            // functor.
-            let f1 = unsafe { mem.functor_cell(idx1) };
-
-            // SAFETY: Since `t2` was a tagged cell, the cell at `idx2` is a
-            // functor.
-            let f2 = unsafe { mem.functor_cell(idx2) };
+            let Cell::Sig(f1) = mem.cell_read(idx1) else {
+                panic!(
+                    "expected a functor at index {:?} but found {:?}",
+                    idx1,
+                    mem.cell_read(idx1)
+                );
+            };
+            let Cell::Sig(f2) = mem.cell_read(idx2) else {
+                panic!(
+                    "expected a functor at index {:?} but found {:?}",
+                    idx1,
+                    mem.cell_read(idx1)
+                );
+            };
 
             assert_eq!(f1, f2);
 
@@ -259,66 +298,42 @@ fn unify_two_values() {
                 let arg1_idx = Idx::new(idx1.usize() + 1 + i as usize);
                 let arg2_idx = Idx::new(idx2.usize() + 1 + i as usize);
 
-                // SAFETY: Since `t1` was a tagged cell, the cell at `arg1` is a
-                // tagged cell.
-                let arg1 = unsafe { mem.tagged_cell(arg1_idx) };
-
-                // SAFETY: Since `t2` was a tagged cell, the cell at `arg2` is a
-                // tagged cell.
-                let arg2 = unsafe { mem.tagged_cell(arg2_idx) };
-
                 // Follow pointers if necessary.
-                match (mem.follow_ref(arg1), mem.follow_ref(arg2)) {
-                    (TaggedCell::Ref(r1), TaggedCell::Ref(_r2)) => {
+                match (mem.follow_refs(arg1_idx), mem.follow_refs(arg2_idx)) {
+                    (Cell::Ref(r1), Cell::Ref(_r2)) => {
                         // Make r1 point to r2 (arbitrary choice).
-                        mem.cell_write(r1, mem.follow_ref(arg2));
+                        mem.cell_write(r1, mem.follow_refs(arg2_idx));
                         // TODO: record variable binding in trail.
                     }
-                    (TaggedCell::Int(i1), TaggedCell::Int(i2)) => {
+                    (Cell::Int(i1), Cell::Int(i2)) => {
                         assert_eq!(i1, i2);
                     }
-                    (TaggedCell::Sym(s1), TaggedCell::Sym(s2)) => {
+                    (Cell::Sym(s1), Cell::Sym(s2)) => {
                         assert_eq!(s1, s2);
                     }
-                    (TaggedCell::Ref(_), _concrete) => {
+                    (Cell::Ref(_), _concrete) => {
                         // Make the var point to the concrete value.
-                        mem.cell_write(arg1_idx, Cell::r#ref(arg2_idx));
+                        mem.cell_write(arg1_idx, Cell::Ref(arg2_idx));
                         // TODO: record variable binding in trail.
                     }
-                    (_concrete, TaggedCell::Ref(_)) => {
+                    (_concrete, Cell::Ref(_)) => {
                         // Make the var point to the concrete value.
-                        mem.cell_write(arg2_idx, Cell::r#ref(arg1_idx));
+                        mem.cell_write(arg2_idx, Cell::Ref(arg1_idx));
                         // TODO: record variable binding in trail.
 
-                        // SAFETY: arg1_idx points to a tagged cell
-                        // because it was created from the index of a tagged
-                        // cell.
-                        unsafe {
-                            assert!(matches!(
-                                mem.follow_ref_idx(arg1_idx).1,
-                                TaggedCell::Int(123)
-                            ));
-                        }
-                        // SAFETY: arg2_idx points to a tagged cell because it's
-                        // cell was just overwritten with a reference to
-                        // arg1_idx (and a reference is a tagged cell).
-                        unsafe {
-                            assert!(matches!(
-                                mem.follow_ref_idx(arg2_idx).1,
-                                TaggedCell::Int(123)
-                            ));
-                        }
+                        assert_eq!(mem.follow_refs(arg1_idx), Cell::Int(123));
+                        assert_eq!(mem.follow_refs(arg2_idx), Cell::Int(123));
                     }
-                    (TaggedCell::Rcd(_), TaggedCell::Rcd(_)) => {
+                    (Cell::Rcd(_), Cell::Rcd(_)) => {
                         todo!("recurse (out of scope of this example)");
                     }
                     _ => panic!("Unification fails: {t1:?} != {t2:?}"),
                 }
             }
         }
-        (TaggedCell::Int(i1), TaggedCell::Int(i2)) if i1 == i2 => {}
-        (TaggedCell::Sym(s1), TaggedCell::Sym(s2)) if s1 == s2 => {}
-        (TaggedCell::Ref(_), _) | (_, TaggedCell::Ref(_)) => {
+        (Cell::Int(i1), Cell::Int(i2)) if i1 == i2 => {}
+        (Cell::Sym(s1), Cell::Sym(s2)) if s1 == s2 => {}
+        (Cell::Ref(_), _) | (_, Cell::Ref(_)) => {
             todo!("Unify variables (out of scope of this example)");
         }
         _ => panic!("Unification fails: {t1:?} != {t2:?}"),

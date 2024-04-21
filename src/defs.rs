@@ -1,7 +1,13 @@
 type Index = u32;
 
 #[derive(Debug, Clone, Copy, PartialEq, Eq, PartialOrd, Ord, Hash)]
-pub(crate) struct Idx(Index);
+pub struct Idx(Index);
+
+impl std::fmt::Display for Idx {
+    fn fmt(&self, f: &mut std::fmt::Formatter<'_>) -> std::fmt::Result {
+        write!(f, "@{}", self.0)
+    }
+}
 
 impl From<usize> for Idx {
     fn from(idx: usize) -> Self {
@@ -48,14 +54,20 @@ impl std::ops::Add<usize> for Idx {
 }
 
 #[derive(Debug, Clone, Copy, PartialEq, Eq, PartialOrd, Ord, Hash)]
-pub(crate) struct Sym {
-    pub(crate) idx: Index,
-}
+pub struct Sym(Index);
 
 impl Sym {
     pub fn new(idx: usize) -> Self {
-        Self {
-            idx: idx.try_into().unwrap(),
-        }
+        Self(idx.try_into().unwrap())
+    }
+
+    pub fn usize(&self) -> usize {
+        self.0 as usize
+    }
+}
+
+impl std::fmt::Display for Sym {
+    fn fmt(&self, f: &mut std::fmt::Formatter<'_>) -> std::fmt::Result {
+        write!(f, "${}", self.0)
     }
 }
