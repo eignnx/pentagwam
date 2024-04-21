@@ -26,10 +26,10 @@ impl Mem {
     }
 
     /// Create a value which can be displayed representing the term stored at
-    /// index `idx`.
-    pub fn display_term(&self, idx: CellRef) -> DisplayTerm {
+    /// `cell_ref`
+    pub fn display_term(&self, cell_ref: CellRef) -> DisplayTerm {
         DisplayTerm {
-            cell_ref: idx,
+            cell_ref,
             mem: self,
         }
     }
@@ -65,18 +65,18 @@ impl Mem {
         cell_ref
     }
 
-    pub fn var_name_from_idx(&self, cell_ref: CellRef) -> Option<Sym> {
+    pub fn var_name_from_cell_ref(&self, cell_ref: CellRef) -> Option<Sym> {
         self.var_indices
             .iter()
             .find_map(|(sym, r)| (*r == cell_ref).then_some(*sym))
     }
 
-    pub fn var_idx_from_sym(&self, name: Sym) -> Option<CellRef> {
+    pub fn var_ref_from_sym(&self, name: Sym) -> Option<CellRef> {
         self.var_indices.get(&name).copied()
     }
 
     pub fn human_readable_var_name(&self, cell_ref: CellRef) -> Cow<str> {
-        if let Some(sym) = self.var_name_from_idx(cell_ref) {
+        if let Some(sym) = self.var_name_from_cell_ref(cell_ref) {
             sym.resolve(self).into()
         } else {
             format!("_{}", cell_ref.usize()).into()
@@ -119,8 +119,8 @@ impl Mem {
 
     /// Follow references until a concrete value is found.
     #[instrument(level = "trace", skip(self), ret)]
-    pub fn resolve_ref_to_cell(&self, cell_idx: CellRef) -> Cell {
-        let (_idx, tagged) = self.resolve_ref_to_ref_and_cell(cell_idx);
+    pub fn resolve_ref_to_cell(&self, cell_ref: CellRef) -> Cell {
+        let (_cell_ref, tagged) = self.resolve_ref_to_ref_and_cell(cell_ref);
         tagged
     }
 
@@ -171,7 +171,7 @@ impl std::fmt::Display for DisplayTerm<'_> {
                 write!(f, "<{}/{}>", functor.sym.resolve(self.mem), functor.arity)
             }
             Cell::Ref(r) if r == self.cell_ref => {
-                if let Some(sym) = self.mem.var_name_from_idx(self.cell_ref) {
+                if let Some(sym) = self.mem.var_name_from_cell_ref(self.cell_ref) {
                     write!(f, "{}", sym.resolve(self.mem))
                 } else {
                     write!(f, "_{}", self.cell_ref.usize())
