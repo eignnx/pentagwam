@@ -42,12 +42,21 @@ impl Syntax {
         let sym = text::ident::<char, Simple<char>>().padded();
 
         recursive::<char, Syntax, _, _, _>(move |term| {
-            let int = text::int(10).map(|s: String| Syntax::Int(s.parse().unwrap()));
+            let int = just('-')
+                .labelled("negative int")
+                .or_not()
+                .then(text::int(10))
+                .labelled("int")
+                .map(|(sign, digits): (_, String)| {
+                    let sign = if sign.is_some() { -1 } else { 1 };
+                    let number = sign * digits.parse::<i32>().unwrap();
+                    Syntax::Int(number)
+                });
 
             let record = sym
                 .then(
                     term.clone()
-                        .separated_by(just(','))
+                        .separated_by(just(',').padded())
                         .allow_trailing()
                         .collect::<Vec<_>>()
                         .delimited_by(just('('), just(')')),
@@ -74,8 +83,9 @@ impl Syntax {
                 .or(int)
                 .or(record)
                 .or(var_or_sym)
-                .padded()
         })
+        .padded()
+        .then_ignore(end())
     }
 }
 
@@ -85,7 +95,7 @@ use test_log::test;
 #[test]
 fn test_parser() {
     let mut mem = Mem::new();
-    let input = "f(a123, X64, _3, g(123, dog))";
+    let input = "f(a123, X64, _3, goblin_stats(123, -99, spear))";
     let root = Syntax::parser().parse(input).unwrap().serialize(&mut mem);
     assert_eq!(mem.display_term(root).to_string(), input);
 }
