@@ -14,3 +14,4 @@ tracing-subscriber = { version = "0.3", default-features = false, features = [
 ] }
 env_logger = "0.10.0"
 test-log = { version = "0.2.12", features = ["trace", "log"] }
+assert2 = "0.3.14"
