@@ -3,7 +3,7 @@ use std::ops::ControlFlow;
 use crate::{cell::Cell, defs::CellRef, mem::Mem};
 
 pub struct Vm {
-    mem: Mem,
+    pub mem: Mem,
     /// The worklist of items left to unify.
     worklist: Vec<Work>,
 }

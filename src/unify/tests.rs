@@ -3,6 +3,7 @@ use chumsky::Parser;
 use test_log::test;
 
 use crate::{
+    cell::Cell,
     mem::Mem,
     syntax::Syntax,
     unify::{rec::unify, vm::Vm},
@@ -141,4 +142,52 @@ fn long_unify() {
     let t2_src = "f(g, h, i, j, k, l, m, n, o, p, q, r, s, t, u, v, w, x, y, a)";
     check!(!parse_and_unify_rec(t1_src, t2_src));
     check!(!parse_and_unify_vm(t1_src, t2_src));
+}
+
+fn unify_rec(t1_src: &str, t2_src: &str, expect_unify_success: bool) -> Mem {
+    let mut mem = Mem::new();
+    let t1 = Syntax::parser().parse(t1_src).unwrap().serialize(&mut mem);
+    let t2 = Syntax::parser().parse(t2_src).unwrap().serialize(&mut mem);
+    assert!(unify(&mut mem, t1, t2) == expect_unify_success);
+    mem
+}
+
+fn unify_vm(t1_src: &str, t2_src: &str, expect_unify_success: bool) -> Vm {
+    let mut mem = Mem::new();
+    let t1 = Syntax::parser().parse(t1_src).unwrap().serialize(&mut mem);
+    let t2 = Syntax::parser().parse(t2_src).unwrap().serialize(&mut mem);
+    let mut vm = Vm::new(mem);
+    vm.setup_unification(t1, t2);
+    assert!(vm.run_unification() == expect_unify_success);
+    vm
+}
+
+#[test]
+fn test_result_of_unification() {
+    let t1_src = "f(X, 42)";
+    let t2_src = "f(99, Y)";
+
+    let mem = unify_rec(t1_src, t2_src, true);
+    check!(mem.cell_from_var_name("X").unwrap() == Cell::Int(99));
+    check!(mem.cell_from_var_name("Y").unwrap() == Cell::Int(42));
+
+    // Now do it with the vm.
+    let vm = unify_vm(t1_src, t2_src, true);
+    check!(vm.mem.cell_from_var_name("X").unwrap() == Cell::Int(99));
+    check!(vm.mem.cell_from_var_name("Y").unwrap() == Cell::Int(42));
+}
+
+#[test]
+fn test_result_of_unification_complex() {
+    let t1_src = "f(g(123, X), h(42, 777))";
+    let t2_src = "f(g(123, 99), h(Y, 777))";
+
+    let mem = unify_rec(t1_src, t2_src, true);
+    check!(mem.cell_from_var_name("X").unwrap() == Cell::Int(99));
+    check!(mem.cell_from_var_name("Y").unwrap() == Cell::Int(42));
+
+    // Now do it with the vm.
+    let vm = unify_vm(t1_src, t2_src, true);
+    check!(vm.mem.cell_from_var_name("X").unwrap() == Cell::Int(99));
+    check!(vm.mem.cell_from_var_name("Y").unwrap() == Cell::Int(42));
 }

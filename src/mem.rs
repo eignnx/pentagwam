@@ -75,6 +75,15 @@ impl Mem {
         self.var_indices.get(&name).copied()
     }
 
+    pub fn var_ref_from_name(&self, name: &str) -> Option<CellRef> {
+        self.var_ref_from_sym(Sym::new(self.symbols.iter().position(|s| s == name)?))
+    }
+
+    pub fn cell_from_var_name(&self, name: &str) -> Option<Cell> {
+        self.var_ref_from_name(name)
+            .map(|r| self.resolve_ref_to_cell(r))
+    }
+
     pub fn human_readable_var_name(&self, cell_ref: CellRef) -> Cow<str> {
         if let Some(sym) = self.var_name_from_cell_ref(cell_ref) {
             sym.resolve(self).into()
