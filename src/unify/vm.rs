@@ -8,10 +8,11 @@ pub struct Vm {
     worklist: Vec<Work>,
 }
 
-#[derive(Debug, Clone, Copy)]
+#[derive(Debug, Clone)]
 struct Work {
-    base1: CellRef,
-    base2: CellRef,
+    functor: String,
+    t1_ref: CellRef,
+    t2_ref: CellRef,
     argc_remaining: usize,
 }
 
@@ -26,9 +27,10 @@ impl Vm {
     pub fn setup_unification(&mut self, t1_ref: CellRef, t2_ref: CellRef) {
         self.worklist.clear();
         self.worklist.push(Work {
-            base1: t1_ref,
-            base2: t2_ref,
-            argc_remaining: 0,
+            functor: "<root>".to_string(),
+            t1_ref,
+            t2_ref,
+            argc_remaining: 1,
         });
     }
 
@@ -44,29 +46,43 @@ impl Vm {
         match self.worklist.last_mut() {
             None => ControlFlow::Break(true),
             Some(Work {
-                base1,
-                base2,
+                functor,
+                t1_ref,
+                t2_ref,
                 argc_remaining,
             }) => {
-                let t1_ref = *base1 + *argc_remaining;
-                let t2_ref = *base2 + *argc_remaining;
+                let t1_ref_cpy = *t1_ref;
+                let t2_ref_cpy = *t2_ref;
 
+                tracing::trace!("functor={functor}");
+                tracing::trace!("argc_remaining={argc_remaining}");
                 if let Some(new_argc_remaining) = argc_remaining.checked_sub(1) {
                     *argc_remaining = new_argc_remaining;
+                    *t1_ref += 1;
+                    *t2_ref += 1;
+                    tracing::trace!("incrementing");
                 } else {
                     // Finished unifying all the args of this compound term.
                     self.worklist.pop();
+                    tracing::trace!("popping");
+                    return ControlFlow::Continue(());
                 }
-
                 // Might push new work onto the worklist.
-                self.generic_unification_step(t1_ref, t2_ref)
+                self.generic_unification_step(t1_ref_cpy, t2_ref_cpy)
             }
         }
     }
 
     fn generic_unification_step(&mut self, t1_ref: CellRef, t2_ref: CellRef) -> ControlFlow<bool> {
+        tracing::trace!("unifying {t1_ref} and {t2_ref}");
         let (t1_ref, t1) = self.mem.resolve_ref_to_ref_and_cell(t1_ref);
         let (t2_ref, t2) = self.mem.resolve_ref_to_ref_and_cell(t2_ref);
+
+        tracing::trace!(
+            "({} ~ {})",
+            self.mem.display_cell(t1),
+            self.mem.display_cell(t2),
+        );
 
         match (t1, t2) {
             (Cell::Int(i1), Cell::Int(i2)) => {
@@ -78,6 +94,13 @@ impl Vm {
             }
             (Cell::Sym(s1), Cell::Sym(s2)) => {
                 if s1 == s2 {
+                    ControlFlow::Continue(())
+                } else {
+                    ControlFlow::Break(false)
+                }
+            }
+            (Cell::Sig(f1), Cell::Sig(f2)) => {
+                if f1 == f2 {
                     ControlFlow::Continue(())
                 } else {
                     ControlFlow::Break(false)
@@ -116,17 +139,14 @@ impl Vm {
                     return ControlFlow::Break(false);
                 }
 
-                // Add 1 to skip past the functor cell.
-                let base1 = f1_ref + 1;
-                let base2 = f2_ref + 1;
-
-                if let Some(argc_remaining) = (f1.arity as usize).checked_sub(1) {
-                    self.worklist.push(Work {
-                        base1,
-                        base2,
-                        argc_remaining,
-                    });
-                }
+                tracing::trace!("pushing ({}~{} + {})", f1_ref + 1, f2_ref + 1, f1.arity);
+                self.worklist.push(Work {
+                    // Add 1 to skip past the functor cell.
+                    functor: self.mem.display_cell(Cell::Sig(f1)).to_string(),
+                    t1_ref: f1_ref + 1,
+                    t2_ref: f2_ref + 1,
+                    argc_remaining: f1.arity as usize,
+                });
 
                 ControlFlow::Continue(())
             }
@@ -141,8 +161,7 @@ impl Vm {
             | (Cell::Sym(_), Cell::Sig(_))
             | (Cell::Sig(_), Cell::Rcd(_))
             | (Cell::Sig(_), Cell::Int(_))
-            | (Cell::Sig(_), Cell::Sym(_))
-            | (Cell::Sig(_), Cell::Sig(_)) => ControlFlow::Break(false),
+            | (Cell::Sig(_), Cell::Sym(_)) => ControlFlow::Break(false),
         }
     }
 }

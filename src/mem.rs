@@ -57,10 +57,6 @@ impl Mem {
 
     pub fn push(&mut self, cell: Cell) -> CellRef {
         let cell_ref = self.heap.len().into();
-        tracing::trace!(
-            "pushing cell `{}` into cell {cell_ref}",
-            self.display_cell(cell)
-        );
         self.heap.push(cell);
         cell_ref
     }
@@ -76,12 +72,13 @@ impl Mem {
     }
 
     pub fn var_ref_from_name(&self, name: &str) -> Option<CellRef> {
-        self.var_ref_from_sym(Sym::new(self.symbols.iter().position(|s| s == name)?))
+        let idx = self.symbols.iter().position(|s| s == name)?;
+        self.var_ref_from_sym(Sym::new(idx))
     }
 
     pub fn cell_from_var_name(&self, name: &str) -> Option<Cell> {
-        self.var_ref_from_name(name)
-            .map(|r| self.resolve_ref_to_cell(r))
+        let cell_ref = self.var_ref_from_name(name)?;
+        Some(self.resolve_ref_to_cell(cell_ref))
     }
 
     pub fn human_readable_var_name(&self, cell_ref: CellRef) -> Cow<str> {
@@ -92,10 +89,14 @@ impl Mem {
         }
     }
 
+    pub fn assign_name_to_var(&mut self, cell_ref: CellRef, name: &str) {
+        let sym = self.intern_sym(name);
+        self.var_indices.insert(sym, cell_ref);
+    }
+
     /// If the name is already associated with a variable, return the index of
     /// that variable. Otherwise, intern the name and push a variable with that
     /// name onto the heap. Return it's index.
-    #[instrument(level = "trace", skip(self), ret)]
     pub fn push_var(&mut self, name: &str) -> CellRef {
         let sym = self.intern_sym(name);
         // This is either a new index or the index of the existing variable.
@@ -117,10 +118,12 @@ impl Mem {
         fresh_ref
     }
 
+    #[track_caller]
     pub fn cell_read(&self, cell_ref: impl Into<CellRef>) -> Cell {
         self.heap[cell_ref.into().usize()]
     }
 
+    #[instrument(level = "trace", skip(self))]
     pub fn cell_write(&mut self, cell_ref: CellRef, cell: Cell) {
         tracing::trace!("HEAP[{cell_ref}] <- {}", self.display_cell(cell));
         self.heap[cell_ref.usize()] = cell;
@@ -135,7 +138,7 @@ impl Mem {
 
     /// Follow references until a concrete value is found. Returns the index of
     /// the concrete value and the concrete value itself.
-    #[instrument(level = "trace", skip(self), ret)]
+    #[track_caller]
     pub fn resolve_ref_to_ref_and_cell(&self, mut cell_ref: CellRef) -> (CellRef, Cell) {
         loop {
             match self.cell_read(cell_ref) {
@@ -157,6 +160,36 @@ impl Mem {
 impl Default for Mem {
     fn default() -> Self {
         Self::new()
+    }
+}
+
+impl std::fmt::Debug for Mem {
+    fn fmt(&self, f: &mut fmt::Formatter<'_>) -> fmt::Result {
+        use std::collections::HashMap;
+        let mut ref_tgts: HashMap<CellRef, Vec<CellRef>> = HashMap::new();
+        for (i, cell) in self.heap.iter().enumerate() {
+            match cell {
+                Cell::Rcd(r) | Cell::Ref(r) => ref_tgts.entry(*r).or_default().push(i.into()),
+                _ => {}
+            }
+        }
+
+        for (i, cell) in self.heap.iter().enumerate() {
+            let i = i.into();
+            if self.var_indices.values().any(|&idx| idx == i) {
+                let name = self.human_readable_var_name(i);
+                write!(f, "`{name}`")?;
+            }
+            write!(f, "\t{i}\t{}", self.display_cell(*cell))?;
+            if ref_tgts.contains_key(&i) {
+                write!(f, " <-")?;
+                for tgt in ref_tgts[&i].iter() {
+                    write!(f, " {tgt}")?;
+                }
+            }
+            writeln!(f)?;
+        }
+        Ok(())
     }
 }
 

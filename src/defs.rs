@@ -53,6 +53,12 @@ impl std::ops::Add<usize> for CellRef {
     }
 }
 
+impl std::ops::AddAssign<usize> for CellRef {
+    fn add_assign(&mut self, rhs: usize) {
+        self.0 += rhs as u32;
+    }
+}
+
 #[derive(Debug, Clone, Copy, PartialEq, Eq, PartialOrd, Ord, Hash)]
 pub struct Sym(UInt);
 

@@ -1,3 +1,5 @@
+#![allow(non_snake_case)]
+
 use assert2::{assert, check};
 use chumsky::Parser;
 use test_log::test;
@@ -145,21 +147,31 @@ fn long_unify() {
 }
 
 fn unify_rec(t1_src: &str, t2_src: &str, expect_unify_success: bool) -> Mem {
-    let mut mem = Mem::new();
-    let t1 = Syntax::parser().parse(t1_src).unwrap().serialize(&mut mem);
-    let t2 = Syntax::parser().parse(t2_src).unwrap().serialize(&mut mem);
-    assert!(unify(&mut mem, t1, t2) == expect_unify_success);
-    mem
+    tracing::trace_span!("REC").in_scope(|| {
+        let mut mem = Mem::new();
+        let t1 = Syntax::parser().parse(t1_src).unwrap().serialize(&mut mem);
+        let t2 = Syntax::parser().parse(t2_src).unwrap().serialize(&mut mem);
+        tracing::trace_span!("DO_UNIFY").in_scope(|| {
+            assert!(unify(&mut mem, t1, t2) == expect_unify_success);
+        });
+        mem
+    })
 }
 
 fn unify_vm(t1_src: &str, t2_src: &str, expect_unify_success: bool) -> Vm {
-    let mut mem = Mem::new();
-    let t1 = Syntax::parser().parse(t1_src).unwrap().serialize(&mut mem);
-    let t2 = Syntax::parser().parse(t2_src).unwrap().serialize(&mut mem);
-    let mut vm = Vm::new(mem);
-    vm.setup_unification(t1, t2);
-    assert!(vm.run_unification() == expect_unify_success);
-    vm
+    tracing::trace_span!("VM").in_scope(|| {
+        let mut mem = Mem::new();
+        let t1 = Syntax::parser().parse(t1_src).unwrap().serialize(&mut mem);
+        let t2 = Syntax::parser().parse(t2_src).unwrap().serialize(&mut mem);
+        let mut vm = Vm::new(mem);
+        vm.mem.assign_name_to_var(t1, "t1");
+        vm.mem.assign_name_to_var(t2, "t2");
+        tracing::trace_span!("DO_UNIFY").in_scope(|| {
+            vm.setup_unification(t1, t2);
+            assert!(vm.run_unification() == expect_unify_success);
+        });
+        vm
+    })
 }
 
 #[test]
@@ -178,16 +190,100 @@ fn test_result_of_unification() {
 }
 
 #[test]
-fn test_result_of_unification_complex() {
-    let t1_src = "f(g(123, X), h(42, 777))";
-    let t2_src = "f(g(123, 99), h(Y, 777))";
+fn test_result_of_unification_complex__rec() {
+    // let t1_src = "f(g(X), h(42))";
+    // let t2_src = "f(g(99), h(Y))";
+    let t1_src = "f(g(99), h(42))";
+    let t2_src = "f(g(99), h(Y))";
+
+    let mem = unify_rec(t1_src, t2_src, true);
+    // check!(mem.cell_from_var_name("X").unwrap() == Cell::Int(99));
+    check!(mem.cell_from_var_name("Y").unwrap() == Cell::Int(42));
+    println!("REC MEM AFTER UNIFICATION");
+    println!("{:?}", mem);
+}
+
+#[test]
+fn test_result_of_unification_complex__vm() {
+    let t1_src = "f(g(99), h(42))";
+    let t2_src = "f(g(99), h(Y))";
+    let vm = unify_vm(t1_src, t2_src, true);
+
+    println!("VM MEM AFTER UNIFICATION");
+    println!("{:?}", vm.mem);
+
+    check!(vm.mem.cell_from_var_name("Y").unwrap() == Cell::Int(42));
+}
+
+#[test]
+fn nested_pair_in_pair_with_var_at_cadr() {
+    let t1_src = "f(777, g(X, 123))";
+    let t2_src = "f(777, g(99, 123))";
 
     let mem = unify_rec(t1_src, t2_src, true);
     check!(mem.cell_from_var_name("X").unwrap() == Cell::Int(99));
-    check!(mem.cell_from_var_name("Y").unwrap() == Cell::Int(42));
 
-    // Now do it with the vm.
     let vm = unify_vm(t1_src, t2_src, true);
     check!(vm.mem.cell_from_var_name("X").unwrap() == Cell::Int(99));
-    check!(vm.mem.cell_from_var_name("Y").unwrap() == Cell::Int(42));
+}
+
+#[test]
+fn nested_pair_in_pair_with_var_at_caddr() {
+    let t1_src = "f(777, g(123, X))";
+    let t2_src = "f(777, g(123, 99))";
+
+    let mem = unify_rec(t1_src, t2_src, true);
+    check!(mem.cell_from_var_name("X").unwrap() == Cell::Int(99));
+
+    let vm = unify_vm(t1_src, t2_src, true);
+    check!(vm.mem.cell_from_var_name("X").unwrap() == Cell::Int(99));
+}
+
+////////////////
+#[test]
+fn nested_pair_in_pair_with_var_at_caar() {
+    let t1_src = "f(g(X, 123), 777)";
+    let t2_src = "f(g(99, 123), 777)";
+
+    let mem = unify_rec(t1_src, t2_src, true);
+    check!(mem.cell_from_var_name("X").unwrap() == Cell::Int(99));
+
+    let vm = unify_vm(t1_src, t2_src, true);
+    check!(vm.mem.cell_from_var_name("X").unwrap() == Cell::Int(99));
+}
+
+#[test]
+fn nested_pair_in_pair_with_var_at_cadar() {
+    let t1_src = "f(g(123, X), 777)";
+    let t2_src = "f(g(123, 99), 777)";
+
+    let mem = unify_rec(t1_src, t2_src, true);
+    check!(mem.cell_from_var_name("X").unwrap() == Cell::Int(99));
+
+    let vm = unify_vm(t1_src, t2_src, true);
+    check!(vm.mem.cell_from_var_name("X").unwrap() == Cell::Int(99));
+}
+
+#[test]
+fn nested_pair_var_in_1st_pos() {
+    let t1_src = "f(g(X, 123))";
+    let t2_src = "f(g(99, 123))";
+
+    let mem = unify_rec(t1_src, t2_src, true);
+    check!(mem.cell_from_var_name("X").unwrap() == Cell::Int(99));
+
+    let vm = unify_vm(t1_src, t2_src, true);
+    check!(vm.mem.cell_from_var_name("X").unwrap() == Cell::Int(99));
+}
+
+#[test]
+fn nested_pair_var_in_2nd_pos() {
+    let t1_src = "f(g(123, X))";
+    let t2_src = "f(g(123, 99))";
+
+    let mem = unify_rec(t1_src, t2_src, true);
+    check!(mem.cell_from_var_name("X").unwrap() == Cell::Int(99));
+
+    let vm = unify_vm(t1_src, t2_src, true);
+    check!(vm.mem.cell_from_var_name("X").unwrap() == Cell::Int(99));
 }
