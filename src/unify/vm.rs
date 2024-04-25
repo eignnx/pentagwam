@@ -10,7 +10,6 @@ pub struct Vm {
 
 #[derive(Debug, Clone)]
 struct Work {
-    functor: String,
     t1_ref: CellRef,
     t2_ref: CellRef,
     argc_remaining: usize,
@@ -27,7 +26,6 @@ impl Vm {
     pub fn setup_unification(&mut self, t1_ref: CellRef, t2_ref: CellRef) {
         self.worklist.clear();
         self.worklist.push(Work {
-            functor: "<root>".to_string(),
             t1_ref,
             t2_ref,
             argc_remaining: 1,
@@ -46,7 +44,6 @@ impl Vm {
         match self.worklist.last_mut() {
             None => ControlFlow::Break(true),
             Some(Work {
-                functor,
                 t1_ref,
                 t2_ref,
                 argc_remaining,
@@ -54,7 +51,6 @@ impl Vm {
                 let t1_ref_cpy = *t1_ref;
                 let t2_ref_cpy = *t2_ref;
 
-                tracing::trace!("functor={functor}");
                 tracing::trace!("argc_remaining={argc_remaining}");
                 if let Some(new_argc_remaining) = argc_remaining.checked_sub(1) {
                     *argc_remaining = new_argc_remaining;
@@ -142,7 +138,6 @@ impl Vm {
                 tracing::trace!("pushing ({}~{} + {})", f1_ref + 1, f2_ref + 1, f1.arity);
                 self.worklist.push(Work {
                     // Add 1 to skip past the functor cell.
-                    functor: self.mem.display_cell(Cell::Sig(f1)).to_string(),
                     t1_ref: f1_ref + 1,
                     t2_ref: f2_ref + 1,
                     argc_remaining: f1.arity as usize,
