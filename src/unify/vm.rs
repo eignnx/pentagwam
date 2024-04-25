@@ -44,26 +44,24 @@ impl Vm {
         match self.worklist.last_mut() {
             None => ControlFlow::Break(true),
             Some(Work {
+                argc_remaining: 0, ..
+            }) => {
+                // Finished unifying all the args of this compound term.
+                tracing::trace!("popping");
+                self.worklist.pop();
+                ControlFlow::Continue(())
+            }
+            Some(Work {
                 t1_ref,
                 t2_ref,
                 argc_remaining,
             }) => {
+                tracing::trace!("argc_remaining={argc_remaining}");
                 let t1_ref_cpy = *t1_ref;
                 let t2_ref_cpy = *t2_ref;
-
-                tracing::trace!("argc_remaining={argc_remaining}");
-                if let Some(new_argc_remaining) = argc_remaining.checked_sub(1) {
-                    *argc_remaining = new_argc_remaining;
-                    *t1_ref += 1;
-                    *t2_ref += 1;
-                    tracing::trace!("incrementing");
-                } else {
-                    // Finished unifying all the args of this compound term.
-                    self.worklist.pop();
-                    tracing::trace!("popping");
-                    return ControlFlow::Continue(());
-                }
-                // Might push new work onto the worklist.
+                *argc_remaining -= 1;
+                *t1_ref += 1;
+                *t2_ref += 1;
                 self.generic_unification_step(t1_ref_cpy, t2_ref_cpy)
             }
         }
@@ -81,22 +79,10 @@ impl Vm {
         );
 
         match (t1, t2) {
-            (Cell::Int(i1), Cell::Int(i2)) => {
-                if i1 == i2 {
-                    ControlFlow::Continue(())
-                } else {
-                    ControlFlow::Break(false)
-                }
-            }
-            (Cell::Sym(s1), Cell::Sym(s2)) => {
-                if s1 == s2 {
-                    ControlFlow::Continue(())
-                } else {
-                    ControlFlow::Break(false)
-                }
-            }
-            (Cell::Sig(f1), Cell::Sig(f2)) => {
-                if f1 == f2 {
+            (Cell::Int(..), Cell::Int(..))
+            | (Cell::Sym(..), Cell::Sym(..))
+            | (Cell::Sig(..), Cell::Sig(..)) => {
+                if t1 == t2 {
                     ControlFlow::Continue(())
                 } else {
                     ControlFlow::Break(false)

@@ -1,6 +1,6 @@
 #![allow(non_snake_case)]
 
-use assert2::{assert, check};
+use assert2::{assert, check, let_assert};
 use chumsky::Parser;
 use test_log::test;
 
@@ -239,7 +239,6 @@ fn nested_pair_in_pair_with_var_at_caddr() {
     check!(vm.mem.cell_from_var_name("X").unwrap() == Cell::Int(99));
 }
 
-////////////////
 #[test]
 fn nested_pair_in_pair_with_var_at_caar() {
     let t1_src = "f(g(X, 123), 777)";
@@ -286,4 +285,46 @@ fn nested_pair_var_in_2nd_pos() {
 
     let vm = unify_vm(t1_src, t2_src, true);
     check!(vm.mem.cell_from_var_name("X").unwrap() == Cell::Int(99));
+}
+
+#[test]
+fn nested_pair_vars_in_both_pos() {
+    let t1_src = "f(g(123, X))";
+    let t2_src = "f(g(Y, 99))";
+
+    let mem = unify_rec(t1_src, t2_src, true);
+    check!(mem.cell_from_var_name("X").unwrap() == Cell::Int(99));
+    check!(mem.cell_from_var_name("Y").unwrap() == Cell::Int(123));
+
+    let vm = unify_vm(t1_src, t2_src, true);
+    check!(vm.mem.cell_from_var_name("X").unwrap() == Cell::Int(99));
+    check!(vm.mem.cell_from_var_name("Y").unwrap() == Cell::Int(123));
+}
+
+#[test]
+fn var_points_to_rcd() {
+    let t1_src = "f(X)";
+    let t2_src = "f(g(99))";
+
+    {
+        let mut mem = unify_rec(t1_src, t2_src, true);
+        let_assert!(Some(cell) = mem.cell_from_var_name("X"));
+        let_assert!(Cell::Rcd(r) = cell);
+        let f = mem.resolve_ref_to_cell(r);
+        let_assert!(Cell::Sig(f) = f);
+        check!(f == mem.intern_functor("g", 1));
+        let r = r + 1;
+        let_assert!(Cell::Int(99) = mem.resolve_ref_to_cell(r));
+    }
+
+    {
+        let mut vm = unify_vm(t1_src, t2_src, true);
+        let_assert!(Some(cell) = vm.mem.cell_from_var_name("X"));
+        let_assert!(Cell::Rcd(r) = cell);
+        let f = vm.mem.resolve_ref_to_cell(r);
+        let_assert!(Cell::Sig(f) = f);
+        check!(f == vm.mem.intern_functor("g", 1));
+        let r = r + 1;
+        let_assert!(Cell::Int(99) = vm.mem.resolve_ref_to_cell(r));
+    }
 }
