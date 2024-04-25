@@ -7,16 +7,16 @@ use test_log::test;
 use crate::{
     cell::Cell,
     mem::Mem,
-    syntax::Syntax,
+    syntax::Term,
     unify::{rec::unify, vm::Vm},
 };
 
 fn parse_and_unify_rec(t1_src: &str, t2_src: &str) -> bool {
     let mut mem = Mem::new();
     let t1 = tracing::trace_span!("parsing", src = t1_src)
-        .in_scope(|| Syntax::parser().parse(t1_src).unwrap().serialize(&mut mem));
+        .in_scope(|| Term::parser().parse(t1_src).unwrap().serialize(&mut mem));
     let t2 = tracing::trace_span!("parsing", src = t2_src)
-        .in_scope(|| Syntax::parser().parse(t2_src).unwrap().serialize(&mut mem));
+        .in_scope(|| Term::parser().parse(t2_src).unwrap().serialize(&mut mem));
     tracing::trace_span!(
         "rec unifying",
         t1 = %mem.display_term(t1),
@@ -28,9 +28,9 @@ fn parse_and_unify_rec(t1_src: &str, t2_src: &str) -> bool {
 fn parse_and_unify_vm(t1_src: &str, t2_src: &str) -> bool {
     let mut mem = Mem::new();
     let t1 = tracing::trace_span!("parsing", src = t1_src)
-        .in_scope(|| Syntax::parser().parse(t1_src).unwrap().serialize(&mut mem));
+        .in_scope(|| Term::parser().parse(t1_src).unwrap().serialize(&mut mem));
     let t2 = tracing::trace_span!("parsing", src = t2_src)
-        .in_scope(|| Syntax::parser().parse(t2_src).unwrap().serialize(&mut mem));
+        .in_scope(|| Term::parser().parse(t2_src).unwrap().serialize(&mut mem));
     tracing::trace_span!(
         "vm unifying",
         t1 = %mem.display_term(t1),
@@ -46,19 +46,19 @@ fn parse_and_unify_vm(t1_src: &str, t2_src: &str) -> bool {
 #[test]
 fn unify_ints() {
     let mut mem = Mem::new();
-    let t1 = Syntax::Int(42).serialize(&mut mem);
-    let t2 = Syntax::Int(42).serialize(&mut mem);
+    let t1 = Term::Int(42).serialize(&mut mem);
+    let t2 = Term::Int(42).serialize(&mut mem);
     assert!(unify(&mut mem, t1, t2));
 }
 
 #[test]
 fn unify_syms() {
     let mut mem = Mem::new();
-    let t1 = Syntax::Sym("socrates".into()).serialize(&mut mem);
-    let t2 = Syntax::Sym("socrates".into()).serialize(&mut mem);
+    let t1 = Term::Sym("socrates".into()).serialize(&mut mem);
+    let t2 = Term::Sym("socrates".into()).serialize(&mut mem);
     check!(unify(&mut mem, t1, t2));
 
-    let t3 = Syntax::Sym("aristotle".into()).serialize(&mut mem);
+    let t3 = Term::Sym("aristotle".into()).serialize(&mut mem);
     check!(!unify(&mut mem, t1, t3));
 }
 
@@ -149,8 +149,8 @@ fn long_unify() {
 fn unify_rec(t1_src: &str, t2_src: &str, expect_unify_success: bool) -> Mem {
     tracing::trace_span!("REC").in_scope(|| {
         let mut mem = Mem::new();
-        let t1 = Syntax::parser().parse(t1_src).unwrap().serialize(&mut mem);
-        let t2 = Syntax::parser().parse(t2_src).unwrap().serialize(&mut mem);
+        let t1 = Term::parser().parse(t1_src).unwrap().serialize(&mut mem);
+        let t2 = Term::parser().parse(t2_src).unwrap().serialize(&mut mem);
         tracing::trace_span!("DO_UNIFY").in_scope(|| {
             assert!(unify(&mut mem, t1, t2) == expect_unify_success);
         });
@@ -161,8 +161,8 @@ fn unify_rec(t1_src: &str, t2_src: &str, expect_unify_success: bool) -> Mem {
 fn unify_vm(t1_src: &str, t2_src: &str, expect_unify_success: bool) -> Vm {
     tracing::trace_span!("VM").in_scope(|| {
         let mut mem = Mem::new();
-        let t1 = Syntax::parser().parse(t1_src).unwrap().serialize(&mut mem);
-        let t2 = Syntax::parser().parse(t2_src).unwrap().serialize(&mut mem);
+        let t1 = Term::parser().parse(t1_src).unwrap().serialize(&mut mem);
+        let t2 = Term::parser().parse(t2_src).unwrap().serialize(&mut mem);
         let mut vm = Vm::new(mem);
         vm.mem.assign_name_to_var(t1, "t1");
         vm.mem.assign_name_to_var(t2, "t2");
