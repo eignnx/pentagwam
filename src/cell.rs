@@ -14,6 +14,12 @@ pub enum Cell {
     Sig(Functor),
 }
 
+impl Default for Cell {
+    fn default() -> Self {
+        Cell::Int(i32::MIN)
+    }
+}
+
 impl std::fmt::Display for Cell {
     fn fmt(&self, f: &mut std::fmt::Formatter<'_>) -> std::fmt::Result {
         match self {

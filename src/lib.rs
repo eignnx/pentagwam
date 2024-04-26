@@ -5,6 +5,7 @@
     clippy::default_union_representation
 )]
 
+pub mod bc;
 pub mod cell;
 pub mod defs;
 pub mod mem;
