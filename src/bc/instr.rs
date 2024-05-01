@@ -63,11 +63,20 @@ pub enum Instr<L> {
     UnifyVariable(Slot),
     UnifyValue(Slot),
     Execute(L),
+    /// The `put_structure` instruction allocates only the cell header,
+    /// the word pointing to the cell and the word identifying the
+    /// function symbol. The arguments have to be filled in by the
+    /// following instructions, each of which allocates one word on
+    /// the heap.
     PutStructure(Arg, Functor),
+    /// The `set_variable` instruction creates an unbound variable on
+    /// the heap, and makes `slot` point to it.
     SetVariable(Slot),
+    /// The `set_value` instruction copies the value in `slot` to the heap.
     SetValue(Slot),
     SetConstant(Constant),
 }
+
 impl<L> Instr<L> {
     pub fn map_lbl<M>(self, f: impl Fn(L) -> M) -> Instr<M> {
         match self {
@@ -97,16 +106,6 @@ impl<L> Instr<L> {
             Instr::SetConstant(constant) => Instr::SetConstant(constant),
         }
     }
-}
-
-/// Labels the instruction.
-macro_rules! lbl {
-    ($l:ident : $instr:expr) => {
-        LabeledInstr {
-            lbl: Some($l),
-            instr: $instr.instr,
-        }
-    };
 }
 
 pub fn switch_on_term(on_var: Lbl, on_const: Lbl, on_list: Lbl, on_struct: Lbl) -> LabeledInstr {
