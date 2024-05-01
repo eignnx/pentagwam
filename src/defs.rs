@@ -3,6 +3,12 @@ type UInt = u32;
 #[derive(Debug, Clone, Copy, PartialEq, Eq, PartialOrd, Ord, Hash)]
 pub struct CellRef(UInt);
 
+impl Default for CellRef {
+    fn default() -> Self {
+        Self(UInt::MAX)
+    }
+}
+
 impl std::fmt::Display for CellRef {
     fn fmt(&self, f: &mut std::fmt::Formatter<'_>) -> std::fmt::Result {
         write!(f, "@{}", self.0)

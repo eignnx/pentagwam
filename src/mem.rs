@@ -220,6 +220,30 @@ impl std::fmt::Display for DisplayTerm<'_> {
                 }
             }
             Cell::Ref(r) => write!(f, "{}", self.mem.display_term(r)),
+            Cell::Nil => write!(f, "[]"),
+            Cell::Lst(mut r) => {
+                write!(f, "[")?;
+                let mut first = true;
+                loop {
+                    if !first {
+                        write!(f, ", ")?;
+                    }
+                    write!(f, "{}", self.mem.display_term(r))?;
+                    match self.mem.cell_read(r + 1) {
+                        Cell::Nil => break,
+                        Cell::Lst(next) => {
+                            r = next;
+                        }
+                        _ => {
+                            write!(f, " | {}", self.mem.display_term(r))?;
+                            break;
+                        }
+                    }
+                    first = false;
+                }
+                write!(f, "]")?;
+                Ok(())
+            }
             Cell::Rcd(start) => {
                 let Cell::Sig(Functor { sym, arity }) = self.mem.cell_read(start) else {
                     panic!(
@@ -261,7 +285,9 @@ impl std::fmt::Display for DisplayCell<'_> {
                     functor.arity
                 )
             }
-            Cell::Int(..) | Cell::Ref(..) | Cell::Rcd(..) => write!(f, "{}", self.cell),
+            Cell::Int(..) | Cell::Ref(..) | Cell::Rcd(..) | Cell::Lst(..) | Cell::Nil => {
+                write!(f, "{}", self.cell)
+            }
         }
     }
 }

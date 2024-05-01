@@ -77,6 +77,8 @@ pub enum Term {
     NamedVar(String),
     FreshVar,
     Record(String, Vec<Term>),
+    Cons(Box<Term>, Box<Term>),
+    Nil,
 }
 
 impl Term {
@@ -125,8 +127,20 @@ impl Term {
                 })
                 .boxed();
 
+            // TODO: parse improper lists like `[a, b | 123]`
+            let list = term
+                .clone()
+                .separated_by(just(',').padded())
+                .delimited_by(just('['), just(']'))
+                .map(|terms| {
+                    terms.into_iter().rfold(Term::Nil, |cdr, car| {
+                        Term::Cons(Box::new(car), Box::new(cdr))
+                    })
+                });
+
             term.delimited_by(just('('), just(')'))
                 .or(int)
+                .or(list)
                 .or(record)
                 .or(var_or_sym)
         })
@@ -134,7 +148,7 @@ impl Term {
     }
 
     pub fn serialize(&self, mem: &mut Mem) -> CellRef {
-        serialize::Serializer::new().serialize(self, mem)
+        serialize::Serializer::new().serialize(self.clone(), mem)
     }
 }
 
@@ -147,7 +161,7 @@ mod tests {
     #[test]
     fn test_term_parser() {
         let mut mem = Mem::new();
-        let input = "f(a123, X64, _3, goblin_stats(123, -99, spear))";
+        let input = "f(a123, X64, _3, [], [1], [1, 2], goblin_stats(123, -99, spear))";
         let root = Term::parser().parse(input).unwrap().serialize(&mut mem);
         assert!(mem.display_term(root).to_string() == input);
     }

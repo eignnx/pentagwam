@@ -105,6 +105,17 @@ impl Vm {
                 self.mem.cell_write(t2_ref, Cell::Ref(t1_ref));
                 ControlFlow::Continue(())
             }
+            (Cell::Nil, Cell::Nil) => ControlFlow::Continue(()),
+            (Cell::Lst(l1_ref), Cell::Lst(l2_ref)) => {
+                // Unify the head cells, then their tails.
+                self.worklist.push(Work {
+                    t1_ref: l1_ref,
+                    t2_ref: l2_ref,
+                    argc_remaining: 2,
+                });
+
+                ControlFlow::Continue(())
+            }
             (Cell::Rcd(f1_ref), Cell::Rcd(f2_ref)) => {
                 let Cell::Sig(f1) = self.mem.cell_read(f1_ref) else {
                     tracing::warn!("expected functor cell at index {f1_ref}");
@@ -142,7 +153,25 @@ impl Vm {
             | (Cell::Sym(_), Cell::Sig(_))
             | (Cell::Sig(_), Cell::Rcd(_))
             | (Cell::Sig(_), Cell::Int(_))
-            | (Cell::Sig(_), Cell::Sym(_)) => ControlFlow::Break(false),
+            | (Cell::Sig(_), Cell::Sym(_))
+            | (Cell::Rcd(_), Cell::Lst(_))
+            | (Cell::Int(_), Cell::Lst(_))
+            | (Cell::Sym(_), Cell::Lst(_))
+            | (Cell::Sig(_), Cell::Lst(_))
+            | (Cell::Lst(_), Cell::Rcd(_))
+            | (Cell::Lst(_), Cell::Int(_))
+            | (Cell::Lst(_), Cell::Sym(_))
+            | (Cell::Lst(_), Cell::Sig(_))
+            | (Cell::Rcd(_), Cell::Nil)
+            | (Cell::Int(_), Cell::Nil)
+            | (Cell::Sym(_), Cell::Nil)
+            | (Cell::Sig(_), Cell::Nil)
+            | (Cell::Lst(_), Cell::Nil)
+            | (Cell::Nil, Cell::Rcd(_))
+            | (Cell::Nil, Cell::Int(_))
+            | (Cell::Nil, Cell::Sym(_))
+            | (Cell::Nil, Cell::Sig(_))
+            | (Cell::Nil, Cell::Lst(_)) => ControlFlow::Break(false),
         }
     }
 }

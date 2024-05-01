@@ -1,5 +1,7 @@
 use derive_more::From;
 
+use crate::{cell::Functor, defs::Sym};
+
 /// A unique identifier for a label.
 pub type Lbl = usize;
 
@@ -61,6 +63,10 @@ pub enum Instr<L> {
     UnifyVariable(Slot),
     UnifyValue(Slot),
     Execute(L),
+    PutStructure(Arg, Functor),
+    SetVariable(Slot),
+    SetValue(Slot),
+    SetConstant(Constant),
 }
 impl<L> Instr<L> {
     pub fn map_lbl<M>(self, f: impl Fn(L) -> M) -> Instr<M> {
@@ -85,6 +91,10 @@ impl<L> Instr<L> {
             Instr::UnifyVariable(slot) => Instr::UnifyVariable(slot),
             Instr::UnifyValue(slot) => Instr::UnifyValue(slot),
             Instr::Execute(lbl) => Instr::Execute(f(lbl)),
+            Instr::PutStructure(arg, functor) => Instr::PutStructure(arg, functor),
+            Instr::SetVariable(slot) => Instr::SetVariable(slot),
+            Instr::SetValue(slot) => Instr::SetValue(slot),
+            Instr::SetConstant(constant) => Instr::SetConstant(constant),
         }
     }
 }
@@ -100,41 +110,71 @@ macro_rules! lbl {
 }
 
 pub fn switch_on_term(on_var: Lbl, on_const: Lbl, on_list: Lbl, on_struct: Lbl) -> LabeledInstr {
-    todo!()
+    Instr::SwitchOnTerm {
+        on_var,
+        on_const,
+        on_list,
+        on_struct,
+    }
+    .into()
 }
 
 pub fn try_me_else(lbl: Lbl) -> LabeledInstr {
-    todo!()
+    Instr::TryMeElse(lbl).into()
 }
 
 pub fn get_nil(arg: Arg) -> LabeledInstr {
-    todo!()
+    Instr::GetNil(arg).into()
 }
 
 pub fn get_value(slot: impl Into<Slot>, arg: Arg) -> LabeledInstr {
-    todo!()
+    Instr::GetValue(slot.into(), arg).into()
 }
 
 pub fn proceed() -> LabeledInstr {
-    todo!()
+    Instr::Proceed.into()
 }
 
 pub fn trust_me_else(lbl: Lbl) -> LabeledInstr {
-    todo!()
+    Instr::TrustMeElse(lbl).into()
 }
 
 pub fn get_list(arg: Arg) -> LabeledInstr {
-    todo!()
+    Instr::GetList(arg).into()
 }
 
 pub fn unify_variable(slot: impl Into<Slot>) -> LabeledInstr {
-    todo!()
+    Instr::UnifyVariable(slot.into()).into()
 }
 
 pub fn unify_value(slot: impl Into<Slot>) -> LabeledInstr {
-    todo!()
+    Instr::UnifyValue(slot.into()).into()
 }
 
 pub fn execute(lbl: Lbl) -> LabeledInstr {
-    todo!()
+    Instr::Execute(lbl).into()
+}
+
+pub fn put_structure(arg: Arg, functor: Functor) -> LabeledInstr {
+    Instr::PutStructure(arg, functor).into()
+}
+
+pub fn set_variable(slot: impl Into<Slot>) -> LabeledInstr {
+    Instr::SetVariable(slot.into()).into()
+}
+
+#[derive(Debug, Clone, Copy, From, PartialEq, Eq, PartialOrd, Ord, Hash)]
+pub enum Constant {
+    #[from]
+    Sym(Sym),
+    #[from]
+    Int(i32),
+}
+
+pub fn set_constant(constant: impl Into<Constant>) -> LabeledInstr {
+    Instr::SetConstant(constant.into()).into()
+}
+
+pub fn set_value(slot: impl Into<Slot>) -> LabeledInstr {
+    Instr::SetValue(slot.into()).into()
 }

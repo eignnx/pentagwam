@@ -4,14 +4,27 @@ use crate::defs::{CellRef, Sym};
 pub enum Cell {
     /// A reference (usually represents a variable).
     Ref(CellRef),
+
     /// A record with an index to its functor.
     Rcd(CellRef),
+
     /// An integer.
     Int(i32),
+
     /// A symbol.
     Sym(Sym),
+
     /// The identifier of a functor.
     Sig(Functor),
+
+    /// A reference to a cons structure (a pair of cells `(car, cdr)`).
+    /// ## Note
+    /// If the ref points to `Nil`, the list contains an empty list as it's
+    /// first element; it's `car` is `[]`.
+    Lst(CellRef),
+
+    /// The empty list.
+    Nil,
 }
 
 impl Default for Cell {
@@ -23,11 +36,13 @@ impl Default for Cell {
 impl std::fmt::Display for Cell {
     fn fmt(&self, f: &mut std::fmt::Formatter<'_>) -> std::fmt::Result {
         match self {
-            Cell::Ref(idx) => write!(f, "Ref({})", idx),
-            Cell::Rcd(idx) => write!(f, "Rcd({})", idx),
-            Cell::Int(i) => write!(f, "Int({})", i),
-            Cell::Sym(sym) => write!(f, "Sym({})", sym),
-            Cell::Sig(functor) => write!(f, "Sig({})", functor),
+            Cell::Ref(r) => write!(f, "Ref({r})"),
+            Cell::Rcd(r) => write!(f, "Rcd({r})"),
+            Cell::Int(i) => write!(f, "Int({i})"),
+            Cell::Sym(s) => write!(f, "Sym({s})"),
+            Cell::Sig(s) => write!(f, "Sig({s})"),
+            Cell::Lst(r) => write!(f, "Lst({r})"),
+            Cell::Nil => write!(f, "Nil"),
         }
     }
 }

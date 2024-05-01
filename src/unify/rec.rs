@@ -43,6 +43,24 @@ pub fn unify(mem: &mut Mem, t1_ref: CellRef, t2_ref: CellRef) -> bool {
             // TODO: record variable binding in trail.
             true
         }
+        (Cell::Lst(car1_ref), Cell::Lst(car2_ref)) => {
+            if car1_ref == t1_ref || car2_ref == t2_ref {
+                // One is nil, so both must be nil.
+                return car1_ref == t1_ref && car2_ref == t2_ref;
+            }
+
+            // Unify the head cells.
+            if !unify(mem, car1_ref, car2_ref) {
+                return false;
+            }
+
+            let cdr1_ref = car1_ref + 1;
+            let cdr2_ref = car2_ref + 1;
+
+            // Unify the tail cells.
+            unify(mem, cdr1_ref, cdr2_ref)
+        }
+        (Cell::Nil, Cell::Nil) => true,
         (Cell::Rcd(f1_ref), Cell::Rcd(f2_ref)) => {
             // Step 2: ensure functors match.
 
@@ -98,5 +116,23 @@ pub fn unify(mem: &mut Mem, t1_ref: CellRef, t2_ref: CellRef) -> bool {
         (Cell::Sig(_), Cell::Rcd(_)) => false,
         (Cell::Sig(_), Cell::Int(_)) => false,
         (Cell::Sig(_), Cell::Sym(_)) => false,
+        (Cell::Rcd(_), Cell::Lst(_)) => false,
+        (Cell::Int(_), Cell::Lst(_)) => false,
+        (Cell::Sym(_), Cell::Lst(_)) => false,
+        (Cell::Sig(_), Cell::Lst(_)) => false,
+        (Cell::Lst(_), Cell::Rcd(_)) => false,
+        (Cell::Lst(_), Cell::Int(_)) => false,
+        (Cell::Lst(_), Cell::Sym(_)) => false,
+        (Cell::Lst(_), Cell::Sig(_)) => false,
+        (Cell::Rcd(_), Cell::Nil) => false,
+        (Cell::Int(_), Cell::Nil) => false,
+        (Cell::Sym(_), Cell::Nil) => false,
+        (Cell::Sig(_), Cell::Nil) => false,
+        (Cell::Lst(_), Cell::Nil) => false,
+        (Cell::Nil, Cell::Rcd(_)) => false,
+        (Cell::Nil, Cell::Int(_)) => false,
+        (Cell::Nil, Cell::Sym(_)) => false,
+        (Cell::Nil, Cell::Sig(_)) => false,
+        (Cell::Nil, Cell::Lst(_)) => false,
     }
 }
