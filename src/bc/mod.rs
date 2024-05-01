@@ -66,7 +66,7 @@ fn push_struct_arg() {
 }
 
 #[test]
-fn use_bc_fns() {
+fn concatenate_example() {
     use instr::Arg::*;
     use instr::Reg::*;
     use instr::*;
