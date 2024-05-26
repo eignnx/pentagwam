@@ -43,7 +43,7 @@ impl Val {
             Val::CellRef(cell_ref) => Ok(*cell_ref),
             other => Err(Error::TypeError {
                 expected: "CellRef".into(),
-                received: other.ty().into(),
+                received: other.ty(),
             }),
         }
     }
@@ -53,7 +53,7 @@ impl Val {
             Val::I32(i) => Ok(*i),
             other => Err(Error::TypeError {
                 expected: "i32".into(),
-                received: other.ty().into(),
+                received: other.ty(),
             }),
         }
     }
@@ -63,17 +63,17 @@ impl Val {
             Val::Usize(u) => Ok(*u),
             other => Err(Error::TypeError {
                 expected: "usize".into(),
-                received: other.ty().into(),
+                received: other.ty(),
             }),
         }
     }
 
     pub fn expect_cell(&self) -> Result<Cell> {
         match self {
-            Val::Cell(cell) => Ok(cell.clone()),
+            Val::Cell(cell) => Ok(*cell),
             other => Err(Error::TypeError {
                 expected: "Cell".into(),
-                received: other.ty().into(),
+                received: other.ty(),
             }),
         }
     }

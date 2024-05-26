@@ -47,14 +47,20 @@ impl std::fmt::Display for Cell {
     }
 }
 
-#[derive(Debug, Clone, Copy, PartialEq, Eq, PartialOrd, Ord, Hash)]
+#[derive(Clone, Copy, PartialEq, Eq, PartialOrd, Ord, Hash)]
 pub struct Functor {
     pub sym: Sym,
     pub arity: u8,
 }
 
-impl std::fmt::Display for Functor {
+impl std::fmt::Debug for Functor {
     fn fmt(&self, f: &mut std::fmt::Formatter<'_>) -> std::fmt::Result {
         write!(f, "{:?}/{}", self.sym, self.arity)
+    }
+}
+
+impl std::fmt::Display for Functor {
+    fn fmt(&self, f: &mut std::fmt::Formatter<'_>) -> std::fmt::Result {
+        write!(f, "{self:?}")
     }
 }

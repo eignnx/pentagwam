@@ -118,9 +118,6 @@ impl HumanPoweredVm {
             ["next" | "n"] => {
                 self.instr_ptr += 1;
             }
-            ["p", rval] => {
-                self.print_rval(rval)?;
-            }
             ["del", field_name] => {
                 if self.fields.remove(*field_name).is_some() {
                     println!("Deleted field `{field_name}`.");
@@ -129,8 +126,18 @@ impl HumanPoweredVm {
                 }
                 println!();
             }
+            ["push", rval] => {
+                let rval: RVal = rval.parse()?;
+                let val = self.eval_to_val(&rval)?;
+                let cell = val.expect_cell()?;
+                self.mem.push(cell);
+                println!("Pushed `{rval}` onto top of heap.");
+            }
             [lval, "=", rhs] => {
                 self.assign_to_lval(lval, rhs)?;
+            }
+            [rval] => {
+                self.print_rval(rval)?;
             }
             _ => println!("=> Unknown command `{}`.", cmd.join(" ")),
         }
@@ -207,7 +214,7 @@ impl HumanPoweredVm {
                 Val::Usize(_) | Val::I32(_) => {
                     return Err(Error::AssignmentTypeError {
                         expected: "Cell or CellRef".into(),
-                        received: rval.ty().into(),
+                        received: rval.ty(),
                     })
                 }
             },
@@ -227,8 +234,9 @@ impl HumanPoweredVm {
     fn print_help(&self) {
         println!();
         println!("Commands:");
-        println!("  p <rval>         - Print the value of <rval>.");
+        println!("  <rval>           - Print the value of <rval>.");
         println!("  <lval> = <rval>  - Assign the value of <rval> to <lval>.");
+        println!("  push <rval>      - Push the value of <rval> onto the heap.");
         println!("  fields | f       - Print all the data fields of the VM.");
         println!("  next | n         - Advance to the next instruction.");
         println!("  q | quit         - Quit the program.");

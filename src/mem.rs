@@ -57,6 +57,7 @@ impl Mem {
         }
     }
 
+    #[track_caller]
     pub fn intern_functor(&self, name: impl AsRef<str>, arity: u8) -> Functor {
         Functor {
             sym: self.intern_sym(name),
