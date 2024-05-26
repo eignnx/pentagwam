@@ -1,3 +1,4 @@
+workspace = { members = ["human_powered_vm"] }
 [package]
 name = "pentagwam"
 version = "0.1.0"

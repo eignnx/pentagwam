@@ -4,6 +4,7 @@ use chumsky::prelude::*;
 
 use crate::{defs::CellRef, mem::Mem};
 
+pub mod compile;
 pub mod serialize;
 
 #[derive(Debug, Clone, PartialEq, Eq, PartialOrd, Ord, Hash)]
@@ -74,8 +75,8 @@ impl Clause {
 pub enum Term {
     Int(i32),
     Sym(String),
-    NamedVar(String),
-    FreshVar,
+    /// The name is `None` for anonymous variables (like `_`).
+    Var(Option<String>),
     Record(String, Vec<Term>),
     Cons(Box<Term>, Box<Term>),
     Nil,
@@ -117,9 +118,9 @@ impl Term {
                     let first_char = name.chars().next().unwrap();
                     if first_char.is_uppercase() || first_char == '_' {
                         if name == "_" {
-                            Term::FreshVar
+                            Term::Var(None)
                         } else {
-                            Term::NamedVar(name)
+                            Term::Var(Some(name))
                         }
                     } else {
                         Term::Sym(name)
@@ -174,7 +175,7 @@ mod tests {
         let input = "dangerous(G) :- goblin(G), has_spear(G).";
         let_assert!(Ok(clause) = Clause::parser().parse(input));
         assert!(clause.head.0 == "dangerous");
-        let g = Term::NamedVar("G".to_owned());
+        let g = Term::Var(Some("G".to_owned()));
         assert!(clause.head.1 == vec![g.clone()]);
         assert!(
             clause.body

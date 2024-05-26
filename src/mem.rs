@@ -1,5 +1,9 @@
 use core::{fmt, panic};
-use std::{borrow::Cow, collections::BTreeMap};
+use std::{
+    borrow::Cow,
+    cell::{Ref, RefCell},
+    collections::BTreeMap,
+};
 
 use tracing::instrument;
 
@@ -11,7 +15,7 @@ use crate::{
 pub struct Mem {
     pub(crate) heap: Vec<Cell>,
     /// Interned symbols.
-    pub(crate) symbols: Vec<String>,
+    pub(crate) symbols: RefCell<Vec<String>>,
     /// Maps variable names to their index in the heap.
     pub(crate) var_indices: BTreeMap<Sym, CellRef>,
 }
@@ -20,7 +24,7 @@ impl Mem {
     pub fn new() -> Self {
         Self {
             heap: Vec::new(),
-            symbols: Vec::new(),
+            symbols: RefCell::new(Vec::new()),
             var_indices: BTreeMap::new(),
         }
     }
@@ -38,17 +42,22 @@ impl Mem {
         DisplayCell { cell, mem: self }
     }
 
-    pub fn intern_sym(&mut self, text: impl AsRef<str>) -> Sym {
-        if let Some(idx) = self.symbols.iter().position(|s| s == text.as_ref()) {
+    #[track_caller]
+    pub fn intern_sym(&self, text: impl AsRef<str>) -> Sym {
+        let opt_pos = self
+            .symbols
+            .borrow()
+            .iter()
+            .position(|s| s == text.as_ref());
+        if let Some(idx) = opt_pos {
             Sym::new(idx)
         } else {
-            let sym = Sym::new(self.symbols.len());
-            self.symbols.push(text.as_ref().to_string());
-            sym
+            self.symbols.borrow_mut().push(text.as_ref().to_string());
+            Sym::new(self.symbols.borrow().len())
         }
     }
 
-    pub fn intern_functor(&mut self, name: impl AsRef<str>, arity: u8) -> Functor {
+    pub fn intern_functor(&self, name: impl AsRef<str>, arity: u8) -> Functor {
         Functor {
             sym: self.intern_sym(name),
             arity,
@@ -72,7 +81,7 @@ impl Mem {
     }
 
     pub fn var_ref_from_name(&self, name: &str) -> Option<CellRef> {
-        let idx = self.symbols.iter().position(|s| s == name)?;
+        let idx = self.symbols.borrow().iter().position(|s| s == name)?;
         self.var_ref_from_sym(Sym::new(idx))
     }
 
@@ -83,7 +92,7 @@ impl Mem {
 
     pub fn human_readable_var_name(&self, cell_ref: CellRef) -> Cow<str> {
         if let Some(sym) = self.var_name_from_cell_ref(cell_ref) {
-            sym.resolve(self).into()
+            sym.resolve(self).to_owned().into()
         } else {
             format!("_{}", cell_ref.usize()).into()
         }
@@ -123,10 +132,18 @@ impl Mem {
         self.heap[cell_ref.into().usize()]
     }
 
+    pub fn try_cell_read(&self, cell_ref: impl Into<CellRef>) -> Option<Cell> {
+        self.heap.get(cell_ref.into().usize()).copied()
+    }
+
     #[instrument(level = "trace", skip(self))]
     pub fn cell_write(&mut self, cell_ref: CellRef, cell: Cell) {
         tracing::trace!("HEAP[{cell_ref}] <- {}", self.display_cell(cell));
         self.heap[cell_ref.usize()] = cell;
+    }
+
+    pub fn try_cell_write(&mut self, cell_ref: CellRef, cell: Cell) -> Option<()> {
+        self.heap.get_mut(cell_ref.usize()).map(|slot| *slot = cell)
     }
 
     /// Follow references until a concrete value is found.
@@ -194,8 +211,10 @@ impl std::fmt::Debug for Mem {
 }
 
 impl Sym {
-    pub fn resolve<'a>(&self, mem: &'a Mem) -> &'a str {
-        &mem.symbols[self.usize()]
+    pub fn resolve<'a>(&self, mem: &'a Mem) -> Ref<'a, str> {
+        Ref::map(mem.symbols.borrow(), |symbols| {
+            symbols[self.usize()].as_ref()
+        })
     }
 }
 

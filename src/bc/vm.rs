@@ -6,7 +6,7 @@ use crate::{
     mem::Mem,
 };
 
-use super::instr::{Instr, LabeledInstr, Lbl, Slot};
+use super::instr::{Instr, LabelledInstr, Lbl, Reg, Slot};
 
 pub type Error = Box<dyn std::error::Error>;
 pub type Result<T> = std::result::Result<T, Error>;
@@ -45,7 +45,7 @@ impl Vm {
         }
     }
 
-    pub fn with_code(mut self, code: Vec<LabeledInstr>) -> Self {
+    pub fn with_code(mut self, code: Vec<LabelledInstr>) -> Self {
         let mut labels: HashMap<Lbl, u32> = HashMap::new();
 
         for (i, instr) in code.iter().enumerate() {
@@ -72,6 +72,14 @@ impl Vm {
         self.pc = self.choices.pop().unwrap();
     }
 
+    fn reg(&self, reg: impl Into<Reg>) -> CellRef {
+        self.regs[reg.into().0 as usize]
+    }
+
+    fn reg_mut(&mut self, reg: impl Into<Reg>) -> &mut CellRef {
+        &mut self.regs[reg.into().0 as usize]
+    }
+
     pub fn step(&mut self) -> Result<()> {
         match self.code[self.pc as usize] {
             Instr::SwitchOnTerm {
@@ -89,21 +97,25 @@ impl Vm {
                 Ok(())
             }
             Instr::GetNil(arg) => {
-                if let Cell::Nil = self.mem.resolve_ref_to_cell(self.regs[arg as usize]) {
-                    self.pc += 1;
-                } else {
-                    self.fail()
+                match self.mem.resolve_ref_to_cell(self.regs[arg.0 as usize]) {
+                    Cell::Ref(var_ref) => {
+                        self.mem.cell_write(var_ref, Cell::Nil);
+                        self.pc += 1;
+                    }
+                    Cell::Nil => self.pc += 1,
+                    _ => self.fail(),
                 }
                 Ok(())
             }
             Instr::GetList(arg) => {
-                match self.mem.resolve_ref_to_cell(self.regs[arg as usize]) {
+                match self.mem.resolve_ref_to_cell(self.regs[arg.0 as usize]) {
                     Cell::Ref(var_ref) => {
                         let car_ref = self.mem.push_fresh_var();
                         let _cdr_ref = self.mem.push_fresh_var();
                         self.mem.cell_write(var_ref, Cell::Lst(car_ref));
                         // TODO: SAVE OLD VALUE OF `var_ref` TO TRAIL
-                        self.regs[arg as usize] = car_ref;
+                        *self.reg_mut(arg) = car_ref;
+                        // self.regs[arg.0 as usize] = car_ref;
                         self.mode = Some(Mode::Write);
                         self.pc += 1;
                     }
@@ -127,21 +139,22 @@ impl Vm {
             Instr::SetVariable(_) => todo!(),
             Instr::SetValue(_) => todo!(),
             Instr::SetConstant(_) => todo!(),
+            Instr::GetStructure(_, _) => todo!(),
+            // Instr::GetConst(_) => todo!(),
+            _ => todo!(),
         }
     }
 
-    fn slot_read(&self, slot: Slot) -> Result<Cell> {
-        match slot {
-            Slot::Reg(r) => Ok(self.mem.resolve_ref_to_cell(self.regs[r as usize])),
-            Slot::Arg(a) => Ok(self.mem.resolve_ref_to_cell(self.regs[a as usize])),
+    fn slot_read(&self, slot: impl Into<Slot>) -> Result<Cell> {
+        match slot.into() {
+            Slot::Reg(r) => Ok(self.mem.resolve_ref_to_cell(self.regs[r.0 as usize])),
             Slot::Local(_) => todo!(),
         }
     }
 
-    fn slot_write(&mut self, slot: Slot, cell_ref: CellRef) -> Result<()> {
-        match slot {
-            Slot::Reg(r) => self.regs[r as usize] = cell_ref,
-            Slot::Arg(a) => self.regs[a as usize] = cell_ref,
+    fn slot_write(&mut self, slot: impl Into<Slot>, cell_ref: CellRef) -> Result<()> {
+        match slot.into() {
+            Slot::Reg(r) => self.regs[r.0 as usize] = cell_ref,
             Slot::Local(_) => todo!(),
         }
         Ok(())

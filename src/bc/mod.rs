@@ -1,11 +1,11 @@
 //! Byte Code module.
 #![allow(unused, clippy::useless_vec)]
 
-use crate::mem::Mem;
+use crate::{bc::vm::Vm, mem::Mem};
 
 #[macro_use]
-mod instr;
-mod vm;
+pub mod instr;
+pub mod vm;
 
 macro_rules! wam_code {
     ($($stuff:tt)*) => {
@@ -23,7 +23,7 @@ macro_rules! wam_code_impl {
             [$($stuff)*] =>
             [
                 $($finished;)*
-                LabeledInstr {
+                LabelledInstr {
                     lbl:Some($lbl),
                     instr: $instr.instr
                 };
@@ -35,7 +35,7 @@ macro_rules! wam_code_impl {
         wam_code_impl!(
             [$($stuff)*] => [
                 $($finished;)*
-                LabeledInstr {
+                LabelledInstr {
                     lbl: None,
                     instr: $instr.instr
                 };
@@ -46,8 +46,8 @@ macro_rules! wam_code_impl {
 
 #[test]
 fn push_struct_arg() {
-    use instr::Arg::*;
-    use instr::Reg::*;
+    use instr::Arg;
+    use instr::Reg;
     use instr::*;
     // let syntax = "foo(Y,abc,123,Y)".parse::<Term>().unwrap();
 
@@ -57,18 +57,39 @@ fn push_struct_arg() {
     let abc = mem.intern_sym("abc");
 
     let bc = wam_code! {
-        put_structure(A1, foo_4);
-        set_variable(A3);
+        put_structure(Arg(1), foo_4);
+        set_variable(Arg(3));
         set_constant(abc);
         set_constant(123);
-        set_value(A3);
+        set_value(Arg(3));
     };
 }
 
 #[test]
+fn inside_clause() {
+    use instr::Arg;
+    use instr::Reg;
+    use instr::*;
+
+    let mut mem = Mem::new();
+
+    let tree_3 = mem.intern_functor("tree", 3);
+
+    // p(tree(X,L,R)) :- …
+    let bc = wam_code! {
+        get_structure(Arg(1), tree_3);
+        unify_variable(Arg(2));
+        unify_variable(Arg(3));
+        unify_variable(Arg(4));
+    };
+
+    Vm::new(mem).with_code(bc).step();
+}
+
+#[test]
 fn concatenate_example() {
-    use instr::Arg::*;
-    use instr::Reg::*;
+    use instr::Arg;
+    use instr::Reg;
     use instr::*;
 
     let mut lbl_id = 0;
@@ -94,20 +115,20 @@ fn concatenate_example() {
         c1a:
             try_me_else(c2a);
         c1:
-            get_nil(A1);
-            get_value(A2, A3);
+            get_nil(Arg(1));
+            get_value(Arg(2), Arg(3));
             proceed();
 
         // Clause 2
         c2a:
             trust_me_else(fail);
         c2:
-            get_list(A1);
-            unify_variable(X4);
-            unify_variable(A1);
-            get_list(A3);
-            unify_value(X4);
-            unify_variable(A3);
+            get_list(Arg(1));
+            unify_variable(Reg(4));
+            unify_variable(Arg(1));
+            get_list(Arg(3));
+            unify_value(Reg(4));
+            unify_variable(Arg(3));
             execute(concatenate_3);
     };
 

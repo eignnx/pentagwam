@@ -47,8 +47,8 @@ impl Serializer {
                 let sym = mem.intern_sym(s);
                 mem.push(Cell::Sym(sym))
             }
-            Term::NamedVar(v) => mem.push_var(&v),
-            Term::FreshVar => mem.push_fresh_var(),
+            Term::Var(Some(v)) => mem.push_var(&v),
+            Term::Var(None) => mem.push_fresh_var(),
             Term::Record(functor, args) => {
                 let rcd_addr = mem.push(Cell::Rcd(u32::MAX.into())); // We'll come back to this.
                 let functor = mem.intern_functor(functor, args.len() as u8);
