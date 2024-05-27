@@ -7,18 +7,18 @@ use pentagwam::{
 pub mod human_powered_vm;
 
 fn main() -> human_powered_vm::error::Result<()> {
-    let mem = pentagwam::mem::Mem::new();
+    let mut vm = HumanPoweredVm::new()?;
 
     let star2 = Functor {
-        sym: mem.intern_sym("*"),
+        sym: vm.intern_sym("*"),
         arity: 2,
     };
     let plus2 = Functor {
-        sym: mem.intern_sym("+"),
+        sym: vm.intern_sym("+"),
         arity: 2,
     };
     let d = Functor {
-        sym: mem.intern_sym("d"),
+        sym: vm.intern_sym("d"),
         arity: 3,
     };
 
@@ -57,7 +57,6 @@ fn main() -> human_powered_vm::error::Result<()> {
     .into_iter()
     .collect::<Vec<Instr<_>>>();
 
-    let mut vm = HumanPoweredVm::new()?;
     vm.run(&instrs)?;
 
     Ok(())

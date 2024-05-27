@@ -52,8 +52,9 @@ impl Mem {
         if let Some(idx) = opt_pos {
             Sym::new(idx)
         } else {
+            let sym = Sym::new(self.symbols.borrow().len());
             self.symbols.borrow_mut().push(text.as_ref().to_string());
-            Sym::new(self.symbols.borrow().len())
+            sym
         }
     }
 

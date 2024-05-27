@@ -1,3 +1,5 @@
+use core::fmt;
+
 use derive_more::From;
 
 use crate::{cell::Functor, defs::Sym};
@@ -23,8 +25,20 @@ impl From<Reg> for Arg {
     }
 }
 
+impl fmt::Display for Arg {
+    fn fmt(&self, f: &mut fmt::Formatter<'_>) -> fmt::Result {
+        write!(f, "A{}", self.0)
+    }
+}
+
 #[derive(Debug, Clone, Copy, PartialEq, Eq, From)]
 pub struct Local(pub u16);
+
+impl fmt::Display for Local {
+    fn fmt(&self, f: &mut fmt::Formatter<'_>) -> fmt::Result {
+        write!(f, "Y{}", self.0)
+    }
+}
 
 #[derive(Debug, Clone, Copy, PartialEq, Eq, From)]
 pub enum Slot {
@@ -32,6 +46,15 @@ pub enum Slot {
     Reg(Reg),
     #[from]
     Local(Local),
+}
+
+impl fmt::Display for Slot {
+    fn fmt(&self, f: &mut fmt::Formatter<'_>) -> fmt::Result {
+        match self {
+            Slot::Reg(reg) => write!(f, "X{}", reg.0),
+            Slot::Local(local) => write!(f, "Y{}", local.0),
+        }
+    }
 }
 
 impl From<Arg> for Slot {

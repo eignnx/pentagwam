@@ -2,7 +2,7 @@ use derive_more::From;
 use pentagwam::{
     bc::instr::Instr,
     cell::{Cell, Functor},
-    defs::CellRef,
+    defs::{CellRef, Sym},
     mem::Mem,
 };
 use std::{
@@ -19,6 +19,8 @@ use crate::human_powered_vm::{
 use self::vals::{CellVal, Val};
 
 pub mod error;
+pub mod instr_fmt;
+pub mod val_fmt;
 pub mod vals;
 
 pub struct HumanPoweredVm {
@@ -84,8 +86,13 @@ impl HumanPoweredVm {
 
     pub fn run(&mut self, program: &[Instr<Functor>]) -> Result<()> {
         loop {
+            println!();
             if let Some(instr) = program.get(self.instr_ptr) {
-                println!("instr #{:04}: {instr:?}", self.instr_ptr);
+                println!(
+                    "instr #{:04}: {}",
+                    self.instr_ptr,
+                    instr_fmt::display_instr(instr, &self.mem)
+                );
                 println!();
             } else {
                 println!("[Instruction pointer beyond end of program]");
@@ -97,7 +104,7 @@ impl HumanPoweredVm {
             match self.handle_cmd(&cmd_split) {
                 Ok(ControlFlow::Break(())) => break,
                 Ok(ControlFlow::Continue(())) => continue,
-                Err(e) => println!("!> {e}\n"),
+                Err(e) => println!("!> {e}"),
             }
         }
         Ok(())
@@ -105,18 +112,26 @@ impl HumanPoweredVm {
 
     fn handle_cmd(&mut self, cmd: &[&str]) -> Result<ControlFlow<()>> {
         match cmd {
-            [] | ["help" | "h" | "?" | "--help"] => self.print_help(),
-            ["quit" | "q"] => return Ok(ControlFlow::Break(())),
+            [] => {
+                println!("=> No command entered.");
+                println!();
+                self.print_help()
+            }
+            ["help" | "h" | "?" | "--help"] => self.print_help(),
+            ["quit" | "q" | ":wq" | ":q"] => {
+                println!("Exiting...");
+                return Ok(ControlFlow::Break(()));
+            }
             ["fields" | "f"] => {
                 println!("Virtual Machine Fields: {{");
                 for (field, value) in self.fields.iter() {
-                    println!("    {field}: {value},");
+                    println!("    {field}: {},", value.display(&self.mem));
                 }
                 println!("}}");
-                println!();
             }
             ["next" | "n"] => {
                 self.instr_ptr += 1;
+                println!("Advanced to next instruction.");
             }
             ["del", field_name] => {
                 if self.fields.remove(*field_name).is_some() {
@@ -124,14 +139,13 @@ impl HumanPoweredVm {
                 } else {
                     println!("Field `{field_name}` can't be deleted because it doesn't exist.")
                 }
-                println!();
             }
             ["push", rval] => {
                 let rval: RVal = rval.parse()?;
                 let val = self.eval_to_val(&rval)?;
                 let cell = val.expect_cell()?;
                 self.mem.push(cell);
-                println!("Pushed `{rval}` onto top of heap.");
+                println!("Pushed `{}` onto top of heap.", val.display(&self.mem));
             }
             [lval, "=", rhs] => {
                 self.assign_to_lval(lval, rhs)?;
@@ -178,12 +192,12 @@ impl HumanPoweredVm {
     }
 
     fn print_rval(&self, rval_name: &str) -> Result<()> {
-        let rval = self.eval_to_val(&rval_name.parse()?)?;
-        println!("=> {rval_name}: {rval}");
+        let val = self.eval_to_val(&rval_name.parse()?)?;
+        println!("=> {rval_name}: {}", val.display(&self.mem));
         Ok(())
     }
 
-    fn lval_set(&mut self, lval: &LVal, rval: &RVal) -> Result<()> {
+    fn lval_set(&mut self, lval: &LVal, rval: &RVal) -> Result<Val> {
         let rhs = self.eval_to_val(rval)?;
         match &lval {
             LVal::InstrPtr => self.instr_ptr = rhs.expect_usize()?,
@@ -219,15 +233,14 @@ impl HumanPoweredVm {
                 }
             },
         }
-        Ok(())
+        Ok(rhs)
     }
 
     fn assign_to_lval(&mut self, lval_name: &str, rhs_name: &str) -> Result<()> {
         let lval = lval_name.parse()?;
         let rval = rhs_name.parse()?;
-        self.lval_set(&lval, &rval)?;
-        println!("Wrote `{rval}` to `{lval}`.");
-        println!();
+        let val = self.lval_set(&lval, &rval)?;
+        println!("Wrote `{}` to `{lval}`.", val.display(&self.mem));
         Ok(())
     }
 
@@ -241,6 +254,9 @@ impl HumanPoweredVm {
         println!("  next | n         - Advance to the next instruction.");
         println!("  q | quit         - Quit the program.");
         println!("  h | help         - Print this help message.");
-        println!();
+    }
+
+    pub fn intern_sym(&self, text: &str) -> Sym {
+        self.mem.intern_sym(text)
     }
 }
