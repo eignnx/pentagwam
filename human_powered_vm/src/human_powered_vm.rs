@@ -101,7 +101,7 @@ impl HumanPoweredVm {
 
             let cmd = self.prompt("Enter a command");
             let cmd_split = cmd.split_whitespace().collect::<Vec<_>>();
-            match self.handle_cmd(&cmd_split) {
+            match self.handle_cmd(&cmd_split, program) {
                 Ok(ControlFlow::Break(())) => break,
                 Ok(ControlFlow::Continue(())) => continue,
                 Err(e) => println!("!> {e}"),
@@ -110,7 +110,7 @@ impl HumanPoweredVm {
         Ok(())
     }
 
-    fn handle_cmd(&mut self, cmd: &[&str]) -> Result<ControlFlow<()>> {
+    fn handle_cmd(&mut self, cmd: &[&str], program: &[Instr<Functor>]) -> Result<ControlFlow<()>> {
         match cmd {
             [] => {
                 println!("=> No command entered.");
@@ -128,6 +128,10 @@ impl HumanPoweredVm {
                     println!("    {field}: {},", value.display(&self.mem));
                 }
                 println!("}}");
+            }
+            ["list" | "l", rest @ ..] => {
+                println!("Program Listing:");
+                self.program_listing(rest, program)?;
             }
             ["next" | "n"] => {
                 self.instr_ptr += 1;
@@ -153,9 +157,53 @@ impl HumanPoweredVm {
             [rval] => {
                 self.print_rval(rval)?;
             }
-            _ => println!("=> Unknown command `{}`.", cmd.join(" ")),
+            _ => println!("!> Unknown command `{}`.", cmd.join(" ")),
         }
         Ok(ControlFlow::Continue(()))
+    }
+
+    fn program_listing(&self, rest: &[&str], program: &[Instr<Functor>]) -> Result<()> {
+        match rest {
+            [] => {
+                for (i, instr) in program.iter().enumerate() {
+                    println!("{:04}: {}", i, instr_fmt::display_instr(instr, &self.mem));
+                }
+            }
+            ["from", n] => {
+                let n = n.parse()?;
+                for (i, instr) in program.iter().enumerate().skip(n) {
+                    println!("{:04}: {}", i, instr_fmt::display_instr(instr, &self.mem));
+                }
+            }
+            ["first", n] => {
+                let n = n.parse()?;
+                for (i, instr) in program.iter().enumerate().take(n) {
+                    println!("{:04}: {}", i, instr_fmt::display_instr(instr, &self.mem));
+                }
+            }
+            ["next", n] => {
+                let n = n.parse()?;
+                for (i, instr) in program.iter().enumerate().skip(self.instr_ptr).take(n) {
+                    println!("{:04}: {}", i, instr_fmt::display_instr(instr, &self.mem));
+                }
+            }
+            ["last", n] => {
+                let n = n.parse()?;
+                let skip = program.len().saturating_sub(n);
+                for (i, instr) in program.iter().enumerate().skip(skip) {
+                    println!("{:04}: {}", i, instr_fmt::display_instr(instr, &self.mem));
+                }
+            }
+            ["prev" | "previous", n] => {
+                let n = n.parse()?;
+                let skip = self.instr_ptr.saturating_sub(n);
+                for (i, instr) in program.iter().enumerate().skip(skip).take(n) {
+                    println!("{:04}: {}", i, instr_fmt::display_instr(instr, &self.mem));
+                }
+            }
+            _ => println!("!> Unknown `list` sub-command `{}`.", rest.join(" ")),
+        }
+        Ok(())
     }
 
     fn eval_to_val(&self, rval: &RVal) -> Result<Val> {
