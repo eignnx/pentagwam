@@ -432,6 +432,10 @@ impl HumanPoweredVm {
         println!("                   - Print a program listing.");
         println!("  docs | doc | d   - Print the documentation for the current instruction.");
         println!("  next | n         - Advance to the next instruction.");
+        println!("  alias <new> -> <old>");
+        println!("                   - Alias <old> as <new>.");
+        println!("  unalias <alias> -> <field>");
+        println!("                   - Unalias <alias> from <field>.");
         println!("  q | quit         - Quit the program.");
         println!("  h | help         - Print this help message.");
     }
