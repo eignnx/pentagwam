@@ -240,8 +240,21 @@ impl<L> Instr<L> {
             Instr::SetConstant(constant) => Instr::SetConstant(constant),
             Instr::GetStructure(arg, functor) => Instr::GetStructure(arg, functor),
             Instr::GetConst(arg, constant) => Instr::GetConst(arg, constant),
-            // Instr::GetVariable(slot) => Instr::GetVariable(slot),
-            _ => todo!(),
+            Instr::Call {
+                functor,
+                nvars_in_env,
+            } => Instr::Call {
+                functor: f(functor),
+                nvars_in_env,
+            },
+            Instr::GetVoid => Instr::GetVoid,
+            Instr::GetVariable(slot, arg) => Instr::GetVariable(slot, arg),
+            Instr::PutVariable(slot, arg) => Instr::PutVariable(slot, arg),
+            Instr::PutValue { var_addr, arg } => Instr::PutValue { var_addr, arg },
+            Instr::PutConst(konst, arg) => Instr::PutConst(konst, arg),
+            Instr::PutNil(arg) => Instr::PutNil(arg),
+            Instr::PutVoid => Instr::PutVoid,
+            Instr::PutList(arg) => Instr::PutList(arg),
         }
     }
 }
