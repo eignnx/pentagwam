@@ -118,6 +118,17 @@ impl HumanPoweredVm {
                 self.print_help()
             }
             ["help" | "h" | "?" | "--help"] => self.print_help(),
+            ["docs" | "doc" | "d"] => {
+                // Print out the doc-comment associated with the current instruction.
+                if let Some(instr) = program.get(self.instr_ptr) {
+                    if let Some(docs) = instr.doc_comment() {
+                        println!("Instruction Documentation:");
+                        println!("{docs}");
+                    } else {
+                        println!("No documentation available for current instruction.");
+                    }
+                }
+            }
             ["quit" | "q" | ":wq" | ":q"] => {
                 println!("Exiting...");
                 return Ok(ControlFlow::Break(()));
@@ -299,6 +310,9 @@ impl HumanPoweredVm {
         println!("  <lval> = <rval>  - Assign the value of <rval> to <lval>.");
         println!("  push <rval>      - Push the value of <rval> onto the heap.");
         println!("  fields | f       - Print all the data fields of the VM.");
+        println!("  list | l [from|next|prev|last|first <n>]");
+        println!("                   - Print a program listing.");
+        println!("  docs | doc | d   - Print the documentation for the current instruction.");
         println!("  next | n         - Advance to the next instruction.");
         println!("  q | quit         - Quit the program.");
         println!("  h | help         - Print this help message.");

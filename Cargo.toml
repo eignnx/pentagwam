@@ -7,6 +7,7 @@ edition = "2021"
 [dependencies]
 chumsky = "0.9.3"
 derive_more = "0.99.17"
+documented = "0.4.1"
 tracing = "0.1.40"
 
 [dev-dependencies]

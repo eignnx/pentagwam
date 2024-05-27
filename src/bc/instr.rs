@@ -89,8 +89,8 @@ impl From<Instr<Lbl>> for LabelledInstr {
     }
 }
 
-#[derive(Debug, Clone, PartialEq, Eq)]
-pub enum Instr<L> {
+#[derive(Debug, Clone, PartialEq, Eq, documented::DocumentedVariants)]
+pub enum Instr<L = ()> {
     /// Dispatch on the type of the value pointed to by `X1`.
     SwitchOnTerm {
         on_var: L,
@@ -197,6 +197,14 @@ pub enum Instr<L> {
     /// of the heap into the `Arg` register. Execution then proceeds in *write*
     /// mode.
     PutList(Arg),
+}
+
+impl<L: Clone> Instr<L> {
+    pub fn doc_comment(&self) -> Option<&'static str> {
+        use documented::DocumentedVariants;
+        let mapped: Instr<()> = self.clone().map_lbl(|_| ());
+        DocumentedVariants::get_variant_docs(&mapped).ok()
+    }
 }
 
 impl<L> Instr<L> {
