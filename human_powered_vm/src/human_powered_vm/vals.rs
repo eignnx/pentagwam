@@ -81,6 +81,7 @@ impl Val {
 
 #[derive(Debug, From, Clone)]
 pub(crate) enum RVal {
+    Deref(Box<RVal>),
     #[from]
     CellRef(CellRef),
     Usize(usize),
@@ -169,6 +170,7 @@ impl FromStr for ValTy {
 impl RVal {
     pub(crate) fn ty(&self) -> ValTy {
         match self {
+            RVal::Deref(_) => ValTy::AnyCellVal,
             RVal::CellRef(_) => ValTy::CellRef,
             RVal::Usize(_) => ValTy::Usize,
             RVal::I32(_) => ValTy::I32,
@@ -202,6 +204,7 @@ impl Default for RVal {
 impl fmt::Display for RVal {
     fn fmt(&self, f: &mut fmt::Formatter) -> fmt::Result {
         match self {
+            RVal::Deref(inner) => write!(f, "*{inner}"),
             RVal::CellRef(cell_ref) => write!(f, "{cell_ref}"),
             RVal::Usize(u) => write!(f, "{u}"),
             RVal::I32(i) => write!(f, "{i:+}"),
@@ -217,6 +220,11 @@ impl FromStr for RVal {
 
     fn from_str(rval: &str) -> Result<RVal> {
         match rval {
+            _ if rval.starts_with('*') => {
+                let inner = &rval[1..];
+                let rval: RVal = inner.parse()?;
+                Ok(RVal::Deref(Box::new(rval)))
+            }
             _ if rval.starts_with('@') => {
                 let u = rval[1..].parse::<usize>()?;
                 Ok(RVal::CellRef(CellRef::new(u)))
