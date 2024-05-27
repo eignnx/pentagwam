@@ -6,14 +6,14 @@ use pentagwam::{
     mem::Mem,
 };
 use std::{
-    collections::BTreeMap,
+    collections::{BTreeMap, BTreeSet},
     io::{Read, Write},
     ops::ControlFlow,
 };
 
 use crate::human_powered_vm::{
     error::{Error, Result},
-    vals::{LVal, RVal},
+    vals::{LVal, RVal, ValTy},
 };
 
 use self::vals::{CellVal, Val};
@@ -24,9 +24,16 @@ pub mod val_fmt;
 pub mod vals;
 
 pub struct HumanPoweredVm {
-    fields: BTreeMap<String, Val>,
+    fields: BTreeMap<String, FieldData>,
     instr_ptr: usize,
     mem: Mem,
+}
+
+#[derive(Debug)]
+pub struct FieldData {
+    value: Val,
+    ty: ValTy,
+    aliases: BTreeSet<String>,
 }
 
 const SAVE_FILE: &str = concat!(env!("CARGO_MANIFEST_DIR"), "/FIELDS.txt");
@@ -35,26 +42,57 @@ impl Drop for HumanPoweredVm {
     fn drop(&mut self) {
         // save all field names to the save file:
         let mut file = std::fs::File::create(SAVE_FILE).unwrap();
-        for field in self.fields.keys() {
-            writeln!(file, "{field}").unwrap();
+        for (field, fdata) in self.fields.iter() {
+            write!(file, "{field}").unwrap();
+            write!(file, ",{}", fdata.ty).unwrap();
+            if !fdata.aliases.is_empty() {
+                write!(file, ",{ALIASES_MARKER}").unwrap();
+                for alias in fdata.aliases.iter() {
+                    write!(file, ",{alias}").unwrap();
+                }
+            }
+            writeln!(file).unwrap();
         }
     }
 }
 
+const ALIASES_MARKER: &str = "[ALIASES]:";
+
 impl HumanPoweredVm {
-    fn init_fields() -> Result<BTreeMap<String, Val>> {
+    fn init_fields() -> Result<BTreeMap<String, FieldData>> {
         let mut fields = BTreeMap::new();
+
+        fn parse_line(line: &str) -> Result<(String, FieldData)> {
+            let mut split = line.split(',');
+            let field_name = split
+                .next()
+                .ok_or(Error::BadSaveFileFormat(line.to_owned()))?;
+            let field_ty: ValTy = split
+                .next()
+                .ok_or(Error::BadSaveFileFormat(line.to_owned()))?
+                .parse()?;
+            let aliases = if let Some(ALIASES_MARKER) = split.next() {
+                split.map(ToOwned::to_owned).collect::<BTreeSet<_>>()
+            } else {
+                Default::default()
+            };
+            Ok((
+                field_name.to_owned(),
+                FieldData {
+                    value: field_ty.default_val(),
+                    ty: field_ty,
+                    aliases,
+                },
+            ))
+        }
 
         match std::fs::File::open(SAVE_FILE) {
             Ok(mut file) => {
                 let mut buf = String::new();
                 file.read_to_string(&mut buf)?;
                 for line in buf.lines() {
-                    let field = line.trim();
-                    if field.contains(char::is_whitespace) {
-                        return Err(Error::BadSaveFileFormat);
-                    }
-                    fields.insert(field.to_owned(), Default::default());
+                    let (field_name, field_data) = parse_line(line.trim())?;
+                    fields.insert(field_name, field_data);
                 }
             }
             Err(e) if e.kind() == std::io::ErrorKind::NotFound => {
@@ -145,8 +183,19 @@ impl HumanPoweredVm {
             }
             ["fields" | "f"] => {
                 println!("Virtual Machine Fields: {{");
-                for (field, value) in self.fields.iter() {
-                    println!("    {field}: {},", value.display(&self.mem));
+                for (field, fdata) in self.fields.iter() {
+                    print!(
+                        "    {field}: {} = {}",
+                        fdata.ty,
+                        fdata.value.display(&self.mem)
+                    );
+                    if !fdata.aliases.is_empty() {
+                        print!("\taliases: ");
+                        for (i, alias) in fdata.aliases.iter().enumerate() {
+                            print!("{}{alias}", if i > 0 { ", " } else { "" });
+                        }
+                    }
+                    println!(";");
                 }
                 println!("}}");
             }
@@ -174,6 +223,25 @@ impl HumanPoweredVm {
             }
             [lval, "=", rhs] => {
                 self.assign_to_lval(lval, rhs)?;
+            }
+            ["alias", new_name, "->", old_name] => {
+                if let Some(fdata) = self.fields.get_mut(*old_name) {
+                    fdata.aliases.insert(new_name.to_string());
+                    println!("Aliased `{old_name}` as `{new_name}`.");
+                } else {
+                    println!("!> Can't alias `{old_name}` as `{new_name}` because `{old_name}` doesn't exist.");
+                }
+            }
+            ["unalias", alias, "->", field] => {
+                if let Some(fdata) = self.fields.get_mut(*field) {
+                    if fdata.aliases.remove(*alias) {
+                        println!("Unaliased `{alias}` from `{field}`.");
+                    } else {
+                        println!("!> Can't unalias `{alias}` from `{field}` because `{alias}` isn't an alias of `{field}`.");
+                    }
+                } else {
+                    println!("!> Can't unalias `{alias}` from `{field}` because `{field}` doesn't exist.");
+                }
             }
             [rval] => {
                 self.print_rval(rval)?;
@@ -239,11 +307,23 @@ impl HumanPoweredVm {
                     .ok_or(Error::OutOfBoundsMemRead(*r))?;
                 Ok(Val::Cell(cell))
             }
-            RVal::Field(field) => Ok(self
-                .fields
-                .get(field)
-                .cloned()
-                .ok_or_else(|| Error::UndefinedField(field.clone()))?),
+            RVal::Field(field) => {
+                if let Some(fdata) = self.fields.get(field) {
+                    Ok(fdata.value.clone())
+                } else {
+                    // check aliases:
+                    self.fields
+                        .values()
+                        .find_map(|fdata| {
+                            if fdata.aliases.contains(&field.to_string()) {
+                                Some(fdata.value.clone())
+                            } else {
+                                None
+                            }
+                        })
+                        .ok_or_else(|| Error::UndefinedField(field.to_string()))
+                }
+            }
             RVal::InstrPtr => Ok(Val::Usize(self.instr_ptr)),
         }
     }
@@ -262,7 +342,7 @@ impl HumanPoweredVm {
 
     fn print_rval(&self, rval_name: &str) -> Result<()> {
         let val = self.eval_to_val(&rval_name.parse()?)?;
-        println!("=> {rval_name}: {}", val.display(&self.mem));
+        println!("=> {rval_name} == {}", val.display(&self.mem));
         Ok(())
     }
 
@@ -271,14 +351,42 @@ impl HumanPoweredVm {
         match &lval {
             LVal::InstrPtr => self.instr_ptr = rhs.expect_usize()?,
             LVal::Field(field) => {
-                let _ = self
+                fn do_assignment(rhs: Val, fdata: &mut FieldData) -> Result<()> {
+                    if fdata.ty != rhs.ty() {
+                        return Err(Error::AssignmentTypeError {
+                            expected: fdata.ty.to_string(),
+                            received: rhs.ty(),
+                        });
+                    }
+                    fdata.value = rhs;
+                    Ok(())
+                }
+
+                if let Some(fdata) = self.fields.get_mut(field) {
+                    do_assignment(rhs.clone(), fdata)?;
+                    println!("Wrote `{}` to `{field}`.", rhs.display(&self.mem));
+                } else if let Some((base_name, fdata)) = self
                     .fields
-                    .entry(field.clone())
-                    .and_modify(|v| *v = rhs.clone())
-                    .or_insert_with(|| {
-                        println!("Creating new field `{lval}`.");
-                        rhs.clone()
-                    });
+                    .iter_mut()
+                    .find(|(_base_name, fdata)| fdata.aliases.contains(field))
+                {
+                    do_assignment(rhs.clone(), fdata)?;
+                    println!(
+                        "Wrote `{}` to `{field}` (alias of `{base_name}`).",
+                        rhs.display(&self.mem)
+                    );
+                } else {
+                    // It must be a new field.
+                    self.fields.insert(
+                        field.to_string(),
+                        FieldData {
+                            value: rhs.clone(),
+                            ty: rhs.ty(),
+                            aliases: Default::default(),
+                        },
+                    );
+                    println!("Created new field `{field}: {} = {rhs}`.", rhs.ty());
+                }
             }
             LVal::CellRef(const_cell_ref) => match rhs {
                 Val::Cell(cell) => self

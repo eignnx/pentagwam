@@ -1,5 +1,4 @@
-X1
-X2
-X5
-X4
-X3
+X1,AnyCellVal,[ALIASES]:,A1
+X2,AnyCellVal,[ALIASES]:,A2
+X3,AnyCellVal,[ALIASES]:,A3
+X4,AnyCellVal,[ALIASES]:,A4

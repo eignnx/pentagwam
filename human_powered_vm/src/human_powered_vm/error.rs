@@ -17,7 +17,7 @@ pub enum Error {
     },
     #[from]
     IoError(std::io::Error),
-    BadSaveFileFormat,
+    BadSaveFileFormat(String),
     UndefinedField(String),
     OutOfBoundsMemRead(CellRef),
     OutOfBoundsMemWrite(CellRef),
@@ -26,6 +26,7 @@ pub enum Error {
         expected: String,
         received: ValTy,
     },
+    ParseTypeError(String),
 }
 
 impl fmt::Display for Error {
@@ -43,7 +44,7 @@ impl fmt::Display for Error {
             ),
             Error::IoError(e) => write!(f, "I/O error: {e}"),
             Error::ParseIntError(e) => write!(f, "Parse int error: {e}"),
-            Error::BadSaveFileFormat => write!(f, "Bad save file format."),
+            Error::BadSaveFileFormat(line) => write!(f, "Bad save file format: {line}"),
             Error::UndefinedField(field) => write!(f, "Undefined field `{field}`"),
             Error::OutOfBoundsMemRead(cell_ref) => {
                 write!(f, "Out of bounds memory READ: {cell_ref}")
@@ -55,6 +56,7 @@ impl fmt::Display for Error {
                 f,
                 "Can't parse functor (format -> SYMBOL/ARITY <-): `{text}`"
             ),
+            Error::ParseTypeError(text) => write!(f, "Can't parse type: `{text}`"),
         }
     }
 }
