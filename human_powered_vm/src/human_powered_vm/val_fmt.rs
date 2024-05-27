@@ -1,6 +1,8 @@
 //! Custom formatting for the `Val` type. Wraps a `Val` in a `ValFmt` and
 //! includes a reference to the `Mem` for formatting `CellRef`s.
 
+use std::fmt::{write, Display};
+
 use super::*;
 
 pub struct ValFmt<'a> {
@@ -48,6 +50,101 @@ impl<'a> std::fmt::Display for ValFmt<'a> {
             Val::Cell(Cell::Rcd(cell_ref)) => write!(f, "Rcd({cell_ref})"),
             Val::Cell(Cell::Lst(cell_ref)) => write!(f, "Lst({cell_ref})"),
             Val::Cell(Cell::Nil) => write!(f, "Nil"),
+        }
+    }
+}
+
+pub struct RValFmt<'a> {
+    rval: &'a RVal,
+    mem: &'a Mem,
+}
+
+impl RVal {
+    pub fn display<'a>(&'a self, mem: &'a Mem) -> RValFmt<'a> {
+        RValFmt { rval: self, mem }
+    }
+}
+
+impl std::fmt::Display for RValFmt<'_> {
+    fn fmt(&self, f: &mut std::fmt::Formatter<'_>) -> std::fmt::Result {
+        match self.rval {
+            RVal::Deref(inner) => write!(f, "*{}", inner.display(self.mem)),
+            RVal::CellRef(r) => write!(f, "{r}"),
+            RVal::Usize(u) => write!(f, "{u}"),
+            RVal::I32(i) => write!(f, "{i:+}"),
+            RVal::Field(field) => write!(f, "{field}"),
+            RVal::InstrPtr => write!(f, "instr_ptr"),
+            RVal::Cell(cell) => write!(f, "{}", cell.display(&self.mem)),
+        }
+    }
+}
+
+pub struct FmtCellVal<'a, T> {
+    cell: &'a CellVal<T>,
+    mem: &'a Mem,
+}
+
+impl<T> CellVal<T> {
+    pub fn display<'a>(&'a self, mem: &'a Mem) -> FmtCellVal<'a, T> {
+        FmtCellVal { cell: self, mem }
+    }
+}
+
+impl<T: std::fmt::Display> std::fmt::Display for FmtCellVal<'_, T> {
+    fn fmt(&self, f: &mut std::fmt::Formatter<'_>) -> std::fmt::Result {
+        match self.cell {
+            CellVal::Int(i) => write!(f, "{i:+}"),
+            CellVal::Sig { fname, arity } => {
+                if fname.contains(|c: char| !c.is_alphanumeric() && c != '_')
+                    || !fname.starts_with(|c: char| c.is_alphabetic() || c == '_')
+                {
+                    write!(f, "Sig('{fname}'/{arity})")
+                } else {
+                    write!(f, "Sig({fname}/{arity})")
+                }
+            }
+            CellVal::Sym(sym) => {
+                if sym.contains(|c: char| !c.is_alphanumeric() && c != '_')
+                    || !sym.starts_with(|c: char| c.is_alphabetic() || c == '_')
+                {
+                    write!(f, "Sym('{sym}')")
+                } else {
+                    write!(f, "Sym({sym})")
+                }
+            }
+            CellVal::Ref(cell_ref) => write!(f, "Ref({cell_ref})"),
+            CellVal::Rcd(cell_ref) => write!(f, "Rcd({cell_ref})"),
+            CellVal::Lst(cell_ref) => write!(f, "Lst({cell_ref})"),
+            CellVal::Nil => write!(f, "Nil"),
+        }
+    }
+}
+
+pub struct LValFmt<'a> {
+    lval: &'a LVal,
+    mem: &'a Mem,
+}
+
+impl LVal {
+    pub fn display<'a>(&'a self, mem: &'a Mem) -> LValFmt<'a> {
+        LValFmt { lval: self, mem }
+    }
+}
+
+impl std::fmt::Display for LValFmt<'_> {
+    fn fmt(&self, f: &mut std::fmt::Formatter<'_>) -> std::fmt::Result {
+        match self.lval {
+            LVal::CellRef(cell_ref) => write!(f, "{cell_ref}"),
+            LVal::Field(field) => write!(f, "{field}"),
+            LVal::InstrPtr => write!(f, "InstrPtr"),
+            LVal::Deref(rval) => write!(
+                f,
+                "*{}",
+                RValFmt {
+                    rval: rval,
+                    mem: self.mem
+                }
+            ),
         }
     }
 }

@@ -238,10 +238,9 @@ impl FromStr for RVal {
                 Ok(RVal::I32(i))
             }
             "instruction_ptr" | "ip" => Ok(RVal::InstrPtr),
-            _ if rval.starts_with(|ch: char| ch.is_ascii_lowercase()) => {
-                Ok(RVal::Field(rval.to_string()))
-            }
-            _ => Ok(RVal::Cell(CellVal::from_str(rval)?)),
+            _ if rval.parse::<CellVal<RVal>>().is_ok() => Ok(RVal::Cell(CellVal::from_str(rval)?)),
+            _ if !rval.contains(char::is_whitespace) => Ok(RVal::Field(rval.to_string())),
+            _ => Err(Error::UnknownRVal(rval.to_string())),
         }
     }
 }
@@ -305,6 +304,7 @@ pub(crate) enum LVal {
     Field(String),
     InstrPtr,
     CellRef(CellRef),
+    Deref(Box<RVal>),
 }
 
 impl fmt::Display for LVal {
@@ -313,6 +313,7 @@ impl fmt::Display for LVal {
             LVal::Field(field) => write!(f, "self.{field}"),
             LVal::InstrPtr => write!(f, "self.instr_ptr"),
             LVal::CellRef(cell_ref) => write!(f, "{cell_ref}"),
+            LVal::Deref(inner) => write!(f, "*{inner}"),
         }
     }
 }
@@ -323,6 +324,11 @@ impl FromStr for LVal {
     fn from_str(lval: &str) -> Result<LVal> {
         match lval {
             "instr_ptr" | "ip" => Ok(LVal::InstrPtr),
+            _ if lval.starts_with('*') => {
+                let inner = &lval[1..];
+                let inner: RVal = inner.parse()?;
+                Ok(LVal::Deref(Box::new(inner)))
+            }
             _ if lval.starts_with('@') => {
                 let u = lval[1..].parse::<usize>()?;
                 Ok(LVal::CellRef(CellRef::new(u)))

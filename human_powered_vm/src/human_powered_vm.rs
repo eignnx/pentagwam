@@ -359,6 +359,41 @@ impl HumanPoweredVm {
     fn lval_set(&mut self, lval: &LVal, rval: &RVal) -> Result<Val> {
         let rhs = self.eval_to_val(rval)?;
         match &lval {
+            LVal::Deref(inner) => {
+                let inner = self.eval_to_val(inner)?;
+                match inner {
+                    Val::CellRef(r) => {
+                        if rhs.ty() != ValTy::AnyCellVal {
+                            return Err(Error::AssignmentTypeError {
+                                expected: "Cell".into(),
+                                received: rhs.ty(),
+                            });
+                        }
+                        self.mem
+                            .try_cell_write(r, rhs.expect_cell()?)
+                            .ok_or(Error::OutOfBoundsMemWrite(r))?;
+                    }
+                    Val::Cell(Cell::Ref(r) | Cell::Rcd(r) | Cell::Lst(r)) => {
+                        if rhs.ty() != ValTy::AnyCellVal {
+                            return Err(Error::AssignmentTypeError {
+                                expected: "Cell".into(),
+                                received: rhs.ty(),
+                            });
+                        }
+                        self.mem
+                            .try_cell_write(r, rhs.expect_cell()?)
+                            .ok_or(Error::OutOfBoundsMemWrite(r))?;
+                    }
+                    Val::Cell(Cell::Int(_) | Cell::Sym(_) | Cell::Sig(_) | Cell::Nil)
+                    | Val::I32(_)
+                    | Val::Usize(_) => {
+                        return Err(Error::AssignmentTypeError {
+                            expected: "CellRef, Ref, Rcd, or Lst".into(),
+                            received: inner.ty(),
+                        })
+                    }
+                }
+            }
             LVal::InstrPtr => self.instr_ptr = rhs.expect_usize()?,
             LVal::Field(field) => {
                 fn do_assignment(rhs: Val, fdata: &mut FieldData) -> Result<()> {
@@ -395,7 +430,11 @@ impl HumanPoweredVm {
                             aliases: Default::default(),
                         },
                     );
-                    println!("Created new field `{field}: {} = {rhs}`.", rhs.ty());
+                    println!(
+                        "Created new field `{field}: {} = {}`.",
+                        rhs.ty(),
+                        rhs.display(&self.mem)
+                    );
                 }
             }
             LVal::CellRef(const_cell_ref) => match rhs {
@@ -427,7 +466,11 @@ impl HumanPoweredVm {
         let lval = lval_name.parse()?;
         let rval = rhs_name.parse()?;
         let val = self.lval_set(&lval, &rval)?;
-        println!("Wrote `{}` to `{lval}`.", val.display(&self.mem));
+        println!(
+            "Wrote `{}` to `{}`.",
+            val.display(&self.mem),
+            lval.display(&self.mem),
+        );
         Ok(())
     }
 
