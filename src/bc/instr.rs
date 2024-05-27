@@ -200,10 +200,14 @@ pub enum Instr<L = ()> {
 }
 
 impl<L: Clone> Instr<L> {
+    /// The crate [`documented`](https://github.com/cyqsimon/documented) (as of
+    /// version 0.4.1) doesn't work with an enum that has a generic type
+    /// parameter. This is a workaround which involves setting the type `()` as
+    /// a default parameter for `L` and discarding the `L` when calling
+    /// `get_variant_docs`.
     pub fn doc_comment(&self) -> Option<&'static str> {
-        use documented::DocumentedVariants;
-        let mapped: Instr<()> = self.clone().map_lbl(|_| ());
-        DocumentedVariants::get_variant_docs(&mapped).ok()
+        let mapped: Instr<()> = self.clone().map_lbl(|_| ()); // Throw away `L`, make it `()`.
+        documented::DocumentedVariants::get_variant_docs(&mapped).ok()
     }
 }
 
