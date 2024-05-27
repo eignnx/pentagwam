@@ -2,3 +2,4 @@ X1,AnyCellVal,[ALIASES]:,A1
 X2,AnyCellVal,[ALIASES]:,A2
 X3,AnyCellVal,[ALIASES]:,A3
 X4,AnyCellVal,[ALIASES]:,A4
+structure_ptr,AnyCellVal,[ALIASES]:,S
