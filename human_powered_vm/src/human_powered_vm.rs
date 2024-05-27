@@ -6,7 +6,7 @@ use pentagwam::{
     mem::Mem,
 };
 use std::{
-    collections::HashMap,
+    collections::BTreeMap,
     io::{Read, Write},
     ops::ControlFlow,
 };
@@ -24,7 +24,7 @@ pub mod val_fmt;
 pub mod vals;
 
 pub struct HumanPoweredVm {
-    fields: HashMap<String, Val>,
+    fields: BTreeMap<String, Val>,
     instr_ptr: usize,
     mem: Mem,
 }
@@ -42,8 +42,8 @@ impl Drop for HumanPoweredVm {
 }
 
 impl HumanPoweredVm {
-    fn init_fields() -> Result<HashMap<String, Val>> {
-        let mut fields = HashMap::new();
+    fn init_fields() -> Result<BTreeMap<String, Val>> {
+        let mut fields = BTreeMap::new();
 
         match std::fs::File::open(SAVE_FILE) {
             Ok(mut file) => {
