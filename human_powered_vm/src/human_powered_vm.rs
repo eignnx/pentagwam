@@ -122,10 +122,20 @@ impl HumanPoweredVm {
                 // Print out the doc-comment associated with the current instruction.
                 if let Some(instr) = program.get(self.instr_ptr) {
                     if let Some(docs) = instr.doc_comment() {
-                        println!("Instruction Documentation:");
+                        println!("{:-^80}", "INSTRUCTION DOCUMENTATION");
+                        println!();
+                        println!(
+                            "{:^80}",
+                            instr_fmt::display_instr(instr, &self.mem).to_string()
+                        );
+                        println!();
                         println!("{docs}");
+                        println!("{:-<80}", "");
                     } else {
-                        println!("No documentation available for current instruction.");
+                        println!(
+                            "!> No documentation available instruction `{}`",
+                            instr_fmt::display_instr(instr, &self.mem)
+                        );
                     }
                 }
             }
