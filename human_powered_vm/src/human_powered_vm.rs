@@ -8,7 +8,6 @@ use pentagwam::{
 use serde::{Deserialize, Serialize};
 use std::{
     collections::{BTreeMap, BTreeSet},
-    fs,
     io::{Read, Write},
     ops::ControlFlow,
 };
@@ -70,7 +69,8 @@ impl HumanPoweredVm {
             Ok(mut file) => {
                 let mut buf = String::new();
                 file.read_to_string(&mut buf)?;
-                let vm = ron::from_str(&buf)?;
+                let mut vm: Self = ron::from_str(&buf)?;
+                vm.populate_default_field_values();
                 Ok(vm)
             }
             Err(e) if e.kind() == std::io::ErrorKind::NotFound => {
@@ -466,5 +466,14 @@ impl HumanPoweredVm {
 
     pub fn intern_sym(&self, text: &str) -> Sym {
         self.mem.intern_sym(text)
+    }
+
+    fn populate_default_field_values(&mut self) {
+        // We'd like for the Deserialize implementation to look at the `ValTy`
+        // of the field and generate a default based on that, but I don't know
+        // how to do that. So we'll just post-process a bit.
+        for (_field, data) in self.fields.iter_mut() {
+            data.value = data.ty.default_val();
+        }
     }
 }
