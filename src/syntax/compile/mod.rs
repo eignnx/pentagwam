@@ -1,3 +1,6 @@
+// During development:
+#![allow(unreachable_code, unused, clippy::diverging_sub_expression)]
+
 use std::collections::HashMap;
 
 use super::{Clause, Module, Term};
@@ -53,12 +56,12 @@ impl CompilerState {
         let (fname, params) = &clause.head;
         for (param_id, param_tm) in params.iter().enumerate() {
             let param_reg = Arg(param_id as u8);
-            self.compile_param(param_tm, param_reg, out);
+            let _ = self.compile_param(param_tm, param_reg, out);
         }
 
         match &clause.body[..] {
             [] => {}
-            [goal] => self.compile_single_goal_clause_body(&goal, out)?,
+            [goal] => self.compile_single_goal_clause_body(goal, out)?,
             goals => self.compile_multi_goal_clause_body(goals, out)?,
         };
 
@@ -190,7 +193,7 @@ impl CompilerState {
                 Ok(())
             }
             Term::Var(None) => {
-                out.push(Instr::PutVoid.into());
+                // out.push(Instr::PutVoid.into());
                 Ok(())
             }
             Term::Var(Some(v)) => match self.vars_to_regs.get(v) {

@@ -58,10 +58,10 @@ fn push_struct_arg() {
 
     let bc = wam_code! {
         put_structure(Arg(1), foo_4);
-        set_variable(Arg(3));
-        set_constant(abc);
-        set_constant(123);
-        set_value(Arg(3));
+        // set_variable(Arg(3));
+        // set_constant(abc);
+        // set_constant(123);
+        // set_value(Arg(3));
     };
 }
 

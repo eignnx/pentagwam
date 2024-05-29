@@ -99,7 +99,6 @@ impl<'a, L: fmt::Debug> fmt::Display for InstrFmt<'a, L> {
             ),
             Instr::PutList(arg) => write!(f, "put_list {}", arg),
             Instr::PutNil(arg) => write!(f, "put_nil {}", arg),
-            Instr::PutVoid => write!(f, "put_void"),
             Instr::Call {
                 functor,
                 nvars_in_env,
@@ -132,9 +131,6 @@ impl<'a, L: fmt::Debug> fmt::Display for InstrFmt<'a, L> {
             ),
             Instr::TryMeElse(lbl) => write!(f, "try_me_else {:?}", lbl),
             Instr::TrustMeElse(lbl) => write!(f, "trust_me_else {:?}", lbl),
-            Instr::SetVariable(_) => todo!(),
-            Instr::SetValue(_) => todo!(),
-            Instr::SetConstant(_) => todo!(),
         }
     }
 }
