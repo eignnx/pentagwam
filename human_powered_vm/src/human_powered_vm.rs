@@ -5,8 +5,10 @@ use pentagwam::{
     defs::{CellRef, Sym},
     mem::Mem,
 };
+use serde::{Deserialize, Serialize};
 use std::{
     collections::{BTreeMap, BTreeSet},
+    fs,
     io::{Read, Write},
     ops::ControlFlow,
 };
@@ -23,94 +25,56 @@ pub mod instr_fmt;
 pub mod val_fmt;
 pub mod vals;
 
+#[derive(Debug, Serialize, Deserialize, Default)]
 pub struct HumanPoweredVm {
     fields: BTreeMap<String, FieldData>,
     instr_ptr: usize,
+    #[serde(skip)]
     mem: Mem,
 }
 
-#[derive(Debug)]
+#[derive(Debug, Serialize, Deserialize)]
 pub struct FieldData {
+    #[serde(skip)]
     value: Val,
     ty: ValTy,
     aliases: BTreeSet<String>,
 }
 
-const SAVE_FILE: &str = concat!(env!("CARGO_MANIFEST_DIR"), "/FIELDS.txt");
+const SAVE_FILE: &str = concat!(env!("CARGO_MANIFEST_DIR"), "/SAVE.ron");
 
 impl Drop for HumanPoweredVm {
     fn drop(&mut self) {
-        // save all field names to the save file:
+        let self_ron = ron::ser::to_string_pretty(
+            &self,
+            ron::ser::PrettyConfig::default()
+                .struct_names(true)
+                .depth_limit(3),
+        )
+        .unwrap();
         let mut file = std::fs::File::create(SAVE_FILE).unwrap();
-        for (field, fdata) in self.fields.iter() {
-            write!(file, "{field}").unwrap();
-            write!(file, ",{}", fdata.ty).unwrap();
-            if !fdata.aliases.is_empty() {
-                write!(file, ",{ALIASES_MARKER}").unwrap();
-                for alias in fdata.aliases.iter() {
-                    write!(file, ",{alias}").unwrap();
-                }
-            }
-            writeln!(file).unwrap();
-        }
+        write!(file, "{}", self_ron).unwrap();
     }
 }
 
-const ALIASES_MARKER: &str = "[ALIASES]:";
-
 impl HumanPoweredVm {
-    fn init_fields() -> Result<BTreeMap<String, FieldData>> {
-        let mut fields = BTreeMap::new();
-
-        fn parse_line(line: &str) -> Result<(String, FieldData)> {
-            let mut split = line.split(',');
-            let field_name = split
-                .next()
-                .ok_or(Error::BadSaveFileFormat(line.to_owned()))?;
-            let field_ty: ValTy = split
-                .next()
-                .ok_or(Error::BadSaveFileFormat(line.to_owned()))?
-                .parse()?;
-            let aliases = if let Some(ALIASES_MARKER) = split.next() {
-                split.map(ToOwned::to_owned).collect::<BTreeSet<_>>()
-            } else {
-                Default::default()
-            };
-            Ok((
-                field_name.to_owned(),
-                FieldData {
-                    value: field_ty.default_val(),
-                    ty: field_ty,
-                    aliases,
-                },
-            ))
-        }
-
+    pub fn new() -> Result<Self> {
         match std::fs::File::open(SAVE_FILE) {
             Ok(mut file) => {
                 let mut buf = String::new();
                 file.read_to_string(&mut buf)?;
-                for line in buf.lines() {
-                    let (field_name, field_data) = parse_line(line.trim())?;
-                    fields.insert(field_name, field_data);
-                }
+                let vm = ron::from_str(&buf)?;
+                Ok(vm)
             }
             Err(e) if e.kind() == std::io::ErrorKind::NotFound => {
                 println!(
-                    "No FIELDS.txt save file found. On exit, one will be created at: {SAVE_FILE}"
+                    "No FIELDS.txt save file found. On exit, one will be \
+                     created at: {SAVE_FILE}"
                 );
+                Ok(Default::default())
             }
-            Err(e) => return Err(e)?,
-        };
-
-        Ok(fields)
-    }
-    pub fn new() -> Result<Self> {
-        Ok(Self {
-            fields: Self::init_fields()?,
-            instr_ptr: 0,
-            mem: Mem::new(),
-        })
+            Err(e) => Err(e.into()),
+        }
     }
 
     fn prompt(&self, prompt: &str) -> String {

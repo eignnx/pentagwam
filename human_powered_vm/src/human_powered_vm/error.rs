@@ -27,6 +27,8 @@ pub enum Error {
         received: ValTy,
     },
     ParseTypeError(String),
+    #[from]
+    RonDeSpannedError(ron::de::SpannedError),
 }
 
 impl fmt::Display for Error {
@@ -57,6 +59,7 @@ impl fmt::Display for Error {
                 "Can't parse functor (format -> SYMBOL/ARITY <-): `{text}`"
             ),
             Error::ParseTypeError(text) => write!(f, "Can't parse type: `{text}`"),
+            Error::RonDeSpannedError(e) => write!(f, "Error while parsing save file: {e}"),
         }
     }
 }

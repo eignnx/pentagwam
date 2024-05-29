@@ -1,8 +1,6 @@
 //! Custom formatting for the `Val` type. Wraps a `Val` in a `ValFmt` and
 //! includes a reference to the `Mem` for formatting `CellRef`s.
 
-use std::fmt::{write, Display};
-
 use super::*;
 
 pub struct ValFmt<'a> {
@@ -74,7 +72,7 @@ impl std::fmt::Display for RValFmt<'_> {
             RVal::I32(i) => write!(f, "{i:+}"),
             RVal::Field(field) => write!(f, "{field}"),
             RVal::InstrPtr => write!(f, "instr_ptr"),
-            RVal::Cell(cell) => write!(f, "{}", cell.display(&self.mem)),
+            RVal::Cell(cell) => write!(f, "{}", cell.display(self.mem)),
         }
     }
 }
@@ -141,7 +139,7 @@ impl std::fmt::Display for LValFmt<'_> {
                 f,
                 "*{}",
                 RValFmt {
-                    rval: rval,
+                    rval,
                     mem: self.mem
                 }
             ),

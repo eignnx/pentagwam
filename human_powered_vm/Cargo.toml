@@ -8,4 +8,5 @@ edition = "2021"
 [dependencies]
 pentagwam = { path = "../../pentagwam" }
 derive_more = "0.99.17"
-chumsky = "0.9.3"
+ron = "0.8"
+serde = { version = "1", features = ["derive"] }

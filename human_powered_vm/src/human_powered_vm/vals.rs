@@ -2,7 +2,7 @@ use std::{fmt, str::FromStr};
 
 use super::*;
 
-#[derive(Debug, From, Clone)]
+#[derive(Debug, From, Clone, Serialize, Deserialize)]
 pub enum Val {
     #[from]
     CellRef(CellRef),
@@ -106,7 +106,7 @@ pub enum CellVal<T> {
     Nil,
 }
 
-#[derive(Debug, Clone, PartialEq, Eq)]
+#[derive(Debug, Clone, PartialEq, Eq, Serialize, Deserialize)]
 pub enum ValTy {
     CellRef,
     AnyCellVal,

@@ -1,6 +1,8 @@
+use serde::{Deserialize, Serialize};
+
 use crate::defs::{CellRef, Sym};
 
-#[derive(Debug, Clone, Copy, PartialEq, Eq, PartialOrd, Ord, Hash)]
+#[derive(Debug, Clone, Copy, PartialEq, Eq, PartialOrd, Ord, Hash, Serialize, Deserialize)]
 pub enum Cell {
     /// A reference (usually represents a variable).
     Ref(CellRef),
@@ -47,7 +49,7 @@ impl std::fmt::Display for Cell {
     }
 }
 
-#[derive(Clone, Copy, PartialEq, Eq, PartialOrd, Ord, Hash)]
+#[derive(Clone, Copy, PartialEq, Eq, PartialOrd, Ord, Hash, Serialize, Deserialize)]
 pub struct Functor {
     pub sym: Sym,
     pub arity: u8,

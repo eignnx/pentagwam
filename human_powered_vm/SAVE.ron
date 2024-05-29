@@ -1,0 +1,29 @@
+HumanPoweredVm(
+    fields: {
+        "X1": FieldData(
+            ty: AnyCellVal,
+            aliases: ["A1"],
+        ),
+        "X2": FieldData(
+            ty: AnyCellVal,
+            aliases: ["A2"],
+        ),
+        "X3": FieldData(
+            ty: AnyCellVal,
+            aliases: ["A3"],
+        ),
+        "X4": FieldData(
+            ty: AnyCellVal,
+            aliases: ["A4"],
+        ),
+        "mode": FieldData(
+            ty: AnyCellVal,
+            aliases: [],
+        ),
+        "structure_ptr": FieldData(
+            ty: AnyCellVal,
+            aliases: ["S"],
+        ),
+    },
+    instr_ptr: 0,
+)

@@ -1,6 +1,8 @@
+use serde::{Deserialize, Serialize};
+
 type UInt = u32;
 
-#[derive(Debug, Clone, Copy, PartialEq, Eq, PartialOrd, Ord, Hash)]
+#[derive(Debug, Clone, Copy, PartialEq, Eq, PartialOrd, Ord, Hash, Serialize, Deserialize)]
 pub struct CellRef(UInt);
 
 impl Default for CellRef {
@@ -65,7 +67,7 @@ impl std::ops::AddAssign<usize> for CellRef {
     }
 }
 
-#[derive(Debug, Clone, Copy, PartialEq, Eq, PartialOrd, Ord, Hash)]
+#[derive(Debug, Clone, Copy, PartialEq, Eq, PartialOrd, Ord, Hash, Serialize, Deserialize)]
 pub struct Sym(UInt);
 
 impl Sym {
