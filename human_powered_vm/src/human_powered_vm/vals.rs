@@ -87,6 +87,7 @@ pub(crate) enum RVal {
     Usize(usize),
     I32(i32),
     Field(String),
+    TmpVar(String),
     InstrPtr,
     Cell(CellVal<RVal>),
 }
@@ -175,6 +176,7 @@ impl RVal {
             RVal::Usize(_) => ValTy::Usize,
             RVal::I32(_) => ValTy::I32,
             RVal::Field(field) => ValTy::TypeOf(field.clone()),
+            RVal::TmpVar(name) => ValTy::TypeOf(name.clone()),
             RVal::InstrPtr => ValTy::Usize,
             RVal::Cell(_) => ValTy::AnyCellVal,
         }
@@ -209,6 +211,7 @@ impl fmt::Display for RVal {
             RVal::Usize(u) => write!(f, "{u}"),
             RVal::I32(i) => write!(f, "{i:+}"),
             RVal::Field(field) => write!(f, "self.{field}"),
+            RVal::TmpVar(name) => write!(f, ".{name}"),
             RVal::InstrPtr => write!(f, "self.instr_ptr"),
             RVal::Cell(cell) => write!(f, "{cell:?}"),
         }
@@ -238,6 +241,10 @@ impl FromStr for RVal {
                 Ok(RVal::I32(i))
             }
             "instruction_ptr" | "ip" => Ok(RVal::InstrPtr),
+            _ if rval.starts_with('.') => {
+                let name = &rval[1..];
+                Ok(RVal::TmpVar(name.to_string()))
+            }
             _ if rval.parse::<CellVal<RVal>>().is_ok() => Ok(RVal::Cell(CellVal::from_str(rval)?)),
             _ if !rval.contains(char::is_whitespace) => Ok(RVal::Field(rval.to_string())),
             _ => Err(Error::UnknownRVal(rval.to_string())),
@@ -302,6 +309,7 @@ impl FromStr for CellVal<RVal> {
 #[derive(Debug)]
 pub(crate) enum LVal {
     Field(String),
+    TmpVar(String),
     InstrPtr,
     CellRef(CellRef),
     Deref(Box<RVal>),
@@ -311,6 +319,7 @@ impl fmt::Display for LVal {
     fn fmt(&self, f: &mut fmt::Formatter) -> fmt::Result {
         match self {
             LVal::Field(field) => write!(f, "self.{field}"),
+            LVal::TmpVar(name) => write!(f, ".{name}"),
             LVal::InstrPtr => write!(f, "self.instr_ptr"),
             LVal::CellRef(cell_ref) => write!(f, "{cell_ref}"),
             LVal::Deref(inner) => write!(f, "*{inner}"),
@@ -332,6 +341,10 @@ impl FromStr for LVal {
             _ if lval.starts_with('@') => {
                 let u = lval[1..].parse::<usize>()?;
                 Ok(LVal::CellRef(CellRef::new(u)))
+            }
+            _ if lval.starts_with('.') => {
+                let name = &lval[1..];
+                Ok(LVal::TmpVar(name.to_string()))
             }
             _ if lval.starts_with(char::is_alphabetic) => Ok(LVal::Field(lval.to_string())),
             _ => Err(Error::UnknownLVal(lval.to_string())),

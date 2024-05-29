@@ -70,7 +70,8 @@ impl std::fmt::Display for RValFmt<'_> {
             RVal::CellRef(r) => write!(f, "{r}"),
             RVal::Usize(u) => write!(f, "{u}"),
             RVal::I32(i) => write!(f, "{i:+}"),
-            RVal::Field(field) => write!(f, "{field}"),
+            RVal::Field(field) => write!(f, "self.{field}"),
+            RVal::TmpVar(name) => write!(f, ".{name}"),
             RVal::InstrPtr => write!(f, "instr_ptr"),
             RVal::Cell(cell) => write!(f, "{}", cell.display()),
         }
@@ -132,7 +133,8 @@ impl std::fmt::Display for LValFmt<'_> {
     fn fmt(&self, f: &mut std::fmt::Formatter<'_>) -> std::fmt::Result {
         match self.lval {
             LVal::CellRef(cell_ref) => write!(f, "{cell_ref}"),
-            LVal::Field(field) => write!(f, "{field}"),
+            LVal::Field(field) => write!(f, "self.{field}"),
+            LVal::TmpVar(name) => write!(f, ".{name}"),
             LVal::InstrPtr => write!(f, "InstrPtr"),
             LVal::Deref(rval) => write!(
                 f,

@@ -188,6 +188,7 @@ checksum = "d231dfb89cfffdbc30e7fc41579ed6066ad03abda9e567ccafae602b97ec5024"
 name = "human_powered_vm"
 version = "0.1.0"
 dependencies = [
+ "chumsky",
  "derive_more",
  "pentagwam",
  "ron",

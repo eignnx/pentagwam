@@ -19,6 +19,7 @@ pub enum Error {
     IoError(std::io::Error),
     BadSaveFileFormat(String),
     UndefinedField(String),
+    UndefinedTmpVar(String),
     OutOfBoundsMemRead(CellRef),
     OutOfBoundsMemWrite(CellRef),
     CantParseFunctor(String),
@@ -29,6 +30,8 @@ pub enum Error {
     ParseTypeError(String),
     #[from]
     RonDeSpannedError(ron::de::SpannedError),
+    #[from]
+    ChumskyParseError(Vec<chumsky::error::Simple<char>>),
 }
 
 impl fmt::Display for Error {
@@ -48,6 +51,7 @@ impl fmt::Display for Error {
             Error::ParseIntError(e) => write!(f, "Parse int error: {e}"),
             Error::BadSaveFileFormat(line) => write!(f, "Bad save file format: {line}"),
             Error::UndefinedField(field) => write!(f, "Undefined field `{field}`"),
+            Error::UndefinedTmpVar(name) => write!(f, "Undefined temporary variable `.{name}`"),
             Error::OutOfBoundsMemRead(cell_ref) => {
                 write!(f, "Out of bounds memory READ: {cell_ref}")
             }
@@ -60,6 +64,13 @@ impl fmt::Display for Error {
             ),
             Error::ParseTypeError(text) => write!(f, "Can't parse type: `{text}`"),
             Error::RonDeSpannedError(e) => write!(f, "Error while parsing save file: {e}"),
+            Error::ChumskyParseError(es) => {
+                writeln!(f, "Error while parsing Prolog term:")?;
+                for e in es {
+                    writeln!(f, "\t{e}")?;
+                }
+                Ok(())
+            }
         }
     }
 }

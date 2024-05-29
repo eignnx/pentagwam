@@ -27,6 +27,8 @@ pub mod vals;
 #[derive(Debug, Serialize, Deserialize, Default)]
 pub struct HumanPoweredVm {
     fields: BTreeMap<String, FieldData>,
+    #[serde(skip)]
+    tmp_vars: BTreeMap<String, FieldData>,
     instr_ptr: usize,
     #[serde(skip)]
     mem: Mem,
@@ -38,6 +40,19 @@ pub struct FieldData {
     value: Val,
     ty: ValTy,
     aliases: BTreeSet<String>,
+}
+
+impl FieldData {
+    fn assign_val(&mut self, rhs: Val) -> Result<()> {
+        if self.ty != rhs.ty() {
+            return Err(Error::AssignmentTypeError {
+                expected: self.ty.to_string(),
+                received: rhs.ty(),
+            });
+        }
+        self.value = rhs;
+        Ok(())
+    }
 }
 
 const SAVE_FILE: &str = concat!(env!("CARGO_MANIFEST_DIR"), "/SAVE.ron");
@@ -153,22 +168,38 @@ impl HumanPoweredVm {
                 return Ok(ControlFlow::Break(()));
             }
             ["fields" | "f"] => {
-                println!("Virtual Machine Fields: {{");
+                println!("Virtual Machine Fields:");
                 for (field, fdata) in self.fields.iter() {
                     print!(
-                        "    {field}: {} = {}",
+                        "\t{field}: {} = {}",
                         fdata.ty,
                         fdata.value.display(&self.mem)
                     );
                     if !fdata.aliases.is_empty() {
-                        print!("\taliases: ");
+                        print!("\t\taliases: ");
                         for (i, alias) in fdata.aliases.iter().enumerate() {
-                            print!("{}{alias}", if i > 0 { ", " } else { "" });
+                            print!("{sep}{alias}", sep = if i > 0 { ", " } else { "" });
                         }
                     }
                     println!(";");
                 }
-                println!("}}");
+
+                println!();
+                println!("Temporary Variables:");
+                for (var_name, fdata) in self.tmp_vars.iter() {
+                    print!(
+                        "\t.{var_name}: {} = {}",
+                        fdata.ty,
+                        fdata.value.display(&self.mem)
+                    );
+                    if !fdata.aliases.is_empty() {
+                        print!("\t\taliases: ");
+                        for (i, alias) in fdata.aliases.iter().enumerate() {
+                            print!("{sep}.{alias}", sep = if i > 0 { ", " } else { "" });
+                        }
+                    }
+                    println!(";");
+                }
             }
             ["list" | "l", rest @ ..] => {
                 println!("Program Listing:");
@@ -192,11 +223,41 @@ impl HumanPoweredVm {
                 self.mem.push(cell);
                 println!("Pushed `{}` onto top of heap.", val.display(&self.mem));
             }
-            [lval, "=", rhs] => {
+            [lval, "<-", "term" | "tm", rest @ ..] => {
+                use chumsky::Parser;
+                let term_text: String = rest.join(" ");
+                let term_parser = pentagwam::syntax::Term::parser();
+                let term = term_parser.parse::<_, &str>(term_text.as_str())?;
+                let cell_ref = term.serialize(&mut self.mem);
+                println!("Serialized Prolog term `{term_text}` into memory at `{cell_ref}`.");
+                let lval: LVal = lval.parse()?;
+                let rval: RVal = cell_ref.into();
+                self.lval_set(&lval, &rval)?;
+                println!(
+                    "CellRef `{cell_ref}` saved into `{}`.",
+                    lval.display(&self.mem)
+                );
+            }
+            [lval, "<-", rhs] => {
                 self.assign_to_lval(lval, rhs)?;
             }
             ["alias", new_name, "->", old_name] => {
-                if let Some(fdata) = self.fields.get_mut(*old_name) {
+                if let Some(old_name) = old_name.strip_prefix('.') {
+                    let Some(new_name) = new_name.strip_prefix('.') else {
+                        println!("!> An alias to a temporary variable must begin with a dot.");
+                        return Ok(ControlFlow::Continue(()));
+                    };
+
+                    if let Some(fdata) = self.tmp_vars.get_mut(old_name) {
+                        fdata.aliases.insert(new_name.to_string());
+                        println!("Aliased `.{old_name}` as `.{new_name}`.");
+                    } else {
+                        println!(
+                            "!> Can't alias `.{old_name}` as `.{new_name}` because \
+                                  temporary variable `.{old_name}` doesn't exist."
+                        );
+                    }
+                } else if let Some(fdata) = self.fields.get_mut(*old_name) {
                     fdata.aliases.insert(new_name.to_string());
                     println!("Aliased `{old_name}` as `{new_name}`.");
                 } else {
@@ -213,6 +274,14 @@ impl HumanPoweredVm {
                 } else {
                     println!("!> Can't unalias `{alias}` from `{field}` because `{field}` doesn't exist.");
                 }
+            }
+            ["term" | "tm", rval] => {
+                // Display a Prolog term
+                let rval: RVal = rval.parse()?;
+                let val = self.eval_to_val(&rval)?;
+                let cell_ref = val.expect_cell_ref()?;
+                let disp = self.mem.display_term(cell_ref);
+                println!("=> {} == {disp}", rval.display(&self.mem));
             }
             [rval] => {
                 self.print_rval(rval)?;
@@ -296,13 +365,29 @@ impl HumanPoweredVm {
                     self.fields
                         .values()
                         .find_map(|fdata| {
-                            if fdata.aliases.contains(&field.to_string()) {
+                            if fdata.aliases.contains(field) {
                                 Some(fdata.value.clone())
                             } else {
                                 None
                             }
                         })
                         .ok_or_else(|| Error::UndefinedField(field.to_string()))
+                }
+            }
+            RVal::TmpVar(name) => {
+                if let Some(fdata) = self.tmp_vars.get(name) {
+                    Ok(fdata.value.clone())
+                } else {
+                    self.tmp_vars
+                        .values()
+                        .find_map(|fdata| {
+                            if fdata.aliases.contains(name) {
+                                Some(fdata.value.clone())
+                            } else {
+                                None
+                            }
+                        })
+                        .ok_or_else(|| Error::UndefinedTmpVar(name.to_string()))
                 }
             }
             RVal::InstrPtr => Ok(Val::Usize(self.instr_ptr)),
@@ -367,26 +452,15 @@ impl HumanPoweredVm {
             }
             LVal::InstrPtr => self.instr_ptr = rhs.expect_usize()?,
             LVal::Field(field) => {
-                fn do_assignment(rhs: Val, fdata: &mut FieldData) -> Result<()> {
-                    if fdata.ty != rhs.ty() {
-                        return Err(Error::AssignmentTypeError {
-                            expected: fdata.ty.to_string(),
-                            received: rhs.ty(),
-                        });
-                    }
-                    fdata.value = rhs;
-                    Ok(())
-                }
-
                 if let Some(fdata) = self.fields.get_mut(field) {
-                    do_assignment(rhs.clone(), fdata)?;
+                    fdata.assign_val(rhs.clone())?;
                     println!("Wrote `{}` to `{field}`.", rhs.display(&self.mem));
                 } else if let Some((base_name, fdata)) = self
                     .fields
                     .iter_mut()
                     .find(|(_base_name, fdata)| fdata.aliases.contains(field))
                 {
-                    do_assignment(rhs.clone(), fdata)?;
+                    fdata.assign_val(rhs.clone())?;
                     println!(
                         "Wrote `{}` to `{field}` (alias of `{base_name}`).",
                         rhs.display(&self.mem)
@@ -402,7 +476,38 @@ impl HumanPoweredVm {
                         },
                     );
                     println!(
-                        "Created new field `{field}: {} = {}`.",
+                        "Created new field `self.{field}: {} = {}`.",
+                        rhs.ty(),
+                        rhs.display(&self.mem)
+                    );
+                }
+            }
+            LVal::TmpVar(var_name) => {
+                if let Some(fdata) = self.tmp_vars.get_mut(var_name) {
+                    fdata.assign_val(rhs.clone())?;
+                    println!("Wrote `{}` to `.{var_name}`.", rhs.display(&self.mem));
+                } else if let Some((base_name, fdata)) = self
+                    .tmp_vars
+                    .iter_mut()
+                    .find(|(_base_name, fdata)| fdata.aliases.contains(var_name))
+                {
+                    fdata.assign_val(rhs.clone())?;
+                    println!(
+                        "Wrote `{}` to `.{var_name}` (alias of `.{base_name}`).",
+                        rhs.display(&self.mem)
+                    );
+                } else {
+                    // It must be a new tmp var.
+                    self.tmp_vars.insert(
+                        var_name.to_string(),
+                        FieldData {
+                            value: rhs.clone(),
+                            ty: rhs.ty(),
+                            aliases: Default::default(),
+                        },
+                    );
+                    println!(
+                        "Created new temporary variable `.{var_name}: {} = {}`.",
                         rhs.ty(),
                         rhs.display(&self.mem)
                     );
@@ -449,12 +554,18 @@ impl HumanPoweredVm {
         println!();
         println!("Commands:");
         println!("  <rval>           - Print the value of <rval>.");
-        println!("  <lval> = <rval>  - Assign the value of <rval> to <lval>.");
+        println!("  <lval> <- <rval> - Assign the value of <rval> to <lval>.");
+        println!("  <lval> <- tm <tm>");
+        println!("                   - Assign the Prolog term <tm> to <lval>.");
+        println!("  <rval>           - Print the value of <rval>.");
+        println!("  term <rval>      - Print the Prolog term residing in memory");
+        println!("                     at CellRef <rval>.");
         println!("  push <rval>      - Push the value of <rval> onto the heap.");
         println!("  fields | f       - Print all the data fields of the VM.");
         println!("  list | l [from|next|prev|last|first <n>]");
         println!("                   - Print a program listing.");
-        println!("  docs | doc | d   - Print the documentation for the current instruction.");
+        println!("  docs | doc | d   - Print the documentation for the current");
+        println!("                     instruction.");
         println!("  next | n         - Advance to the next instruction.");
         println!("  alias <new> -> <old>");
         println!("                   - Alias <old> as <new>.");
