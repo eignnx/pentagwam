@@ -17,7 +17,7 @@ HumanPoweredVm(
             aliases: ["A4"],
         ),
         "mode": FieldData(
-            ty: AnyCellVal,
+            ty: Symbol,
             aliases: [],
         ),
         "structure_ptr": FieldData(
