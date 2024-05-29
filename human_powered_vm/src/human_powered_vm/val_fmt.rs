@@ -72,19 +72,18 @@ impl std::fmt::Display for RValFmt<'_> {
             RVal::I32(i) => write!(f, "{i:+}"),
             RVal::Field(field) => write!(f, "{field}"),
             RVal::InstrPtr => write!(f, "instr_ptr"),
-            RVal::Cell(cell) => write!(f, "{}", cell.display(self.mem)),
+            RVal::Cell(cell) => write!(f, "{}", cell.display()),
         }
     }
 }
 
 pub struct FmtCellVal<'a, T> {
     cell: &'a CellVal<T>,
-    mem: &'a Mem,
 }
 
 impl<T> CellVal<T> {
-    pub fn display<'a>(&'a self, mem: &'a Mem) -> FmtCellVal<'a, T> {
-        FmtCellVal { cell: self, mem }
+    pub fn display(&self) -> FmtCellVal<'_, T> {
+        FmtCellVal { cell: self }
     }
 }
 
