@@ -52,7 +52,14 @@ impl Drop for HumanPoweredVm {
                 .depth_limit(3),
         )
         .unwrap();
-        let mut file = std::fs::File::create(SAVE_FILE).unwrap();
+        let mut file = std::fs::File::create(SAVE_FILE).unwrap_or_else(|e| {
+            println!("Could not open save file `{SAVE_FILE}` due to error: {e}");
+            println!("DUMP SAVE DATA:");
+            println!("---------------");
+            println!("{self_ron}");
+            println!("---------------");
+            std::process::exit(2);
+        });
         write!(file, "{}", self_ron).unwrap();
     }
 }
