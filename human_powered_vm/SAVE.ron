@@ -1,19 +1,19 @@
 HumanPoweredVm(
     fields: {
         "X1": FieldData(
-            ty: AnyCellVal,
+            ty: CellRef,
             aliases: ["A1"],
         ),
         "X2": FieldData(
-            ty: AnyCellVal,
+            ty: CellRef,
             aliases: ["A2"],
         ),
         "X3": FieldData(
-            ty: AnyCellVal,
+            ty: CellRef,
             aliases: ["A3"],
         ),
         "X4": FieldData(
-            ty: AnyCellVal,
+            ty: CellRef,
             aliases: ["A4"],
         ),
         "mode": FieldData(
