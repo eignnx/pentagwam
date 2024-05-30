@@ -1,6 +1,6 @@
 use std::fmt;
 
-use self::vals::ValTy;
+use self::vals::valty::ValTy;
 
 use super::*;
 
@@ -65,7 +65,7 @@ impl fmt::Display for Error {
             Error::ParseTypeError(text) => write!(f, "Can't parse type: `{text}`"),
             Error::RonDeSpannedError(e) => write!(f, "Error while parsing save file: {e}"),
             Error::ChumskyParseError(es) => {
-                writeln!(f, "Error while parsing Prolog term:")?;
+                writeln!(f, "Parse error:")?;
                 for e in es {
                     writeln!(f, "\t{e}")?;
                 }

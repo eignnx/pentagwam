@@ -14,10 +14,8 @@ use std::{
 
 use crate::human_powered_vm::{
     error::{Error, Result},
-    vals::{LVal, RVal, ValTy},
+    vals::{cellval::CellVal, lval::LVal, rval::RVal, val::Val, valty::ValTy},
 };
-
-use self::vals::{CellVal, Val};
 
 pub mod error;
 pub mod instr_fmt;
@@ -404,7 +402,7 @@ impl HumanPoweredVm {
         }
     }
 
-    fn eval_cellval_to_cell(&self, cell: &CellVal<RVal>) -> Result<Cell> {
+    fn eval_cellval_to_cell(&self, cell: &CellVal) -> Result<Cell> {
         Ok(match cell {
             CellVal::Ref(r) => Cell::Ref(self.eval_to_val(r)?.expect_cell_ref()?),
             CellVal::Rcd(r) => Cell::Rcd(self.eval_to_val(r)?.expect_cell_ref()?),
