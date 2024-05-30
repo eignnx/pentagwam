@@ -5,6 +5,7 @@ use crate::human_powered_vm::vals::cellval::CellVal;
 use chumsky::prelude::*;
 use derive_more::From;
 use pentagwam::defs::CellRef;
+use pentagwam::mem::Mem;
 use std::{fmt, str::FromStr};
 
 use super::valty::ValTy;
@@ -112,5 +113,37 @@ impl FromStr for RVal {
 
     fn from_str(s: &str) -> Result<Self> {
         Ok(Self::parser().parse(s)?)
+    }
+}
+
+pub struct RValFmt<'a> {
+    rval: &'a RVal,
+    mem: &'a Mem,
+}
+
+impl RVal {
+    pub fn display<'a>(&'a self, mem: &'a Mem) -> RValFmt<'a> {
+        RValFmt { rval: self, mem }
+    }
+}
+
+impl std::fmt::Display for RValFmt<'_> {
+    fn fmt(&self, f: &mut std::fmt::Formatter<'_>) -> std::fmt::Result {
+        match self.rval {
+            RVal::Deref(inner) => write!(f, "*{}", inner.display(self.mem)),
+            RVal::Index(base, offset) => write!(
+                f,
+                "{}[{}]",
+                base.display(self.mem),
+                offset.display(self.mem),
+            ),
+            RVal::CellRef(r) => write!(f, "{r}"),
+            RVal::Usize(u) => write!(f, "{u}"),
+            RVal::I32(i) => write!(f, "{i:+}"),
+            RVal::Field(field) => write!(f, "self.{field}"),
+            RVal::TmpVar(name) => write!(f, ".{name}"),
+            RVal::InstrPtr => write!(f, "instr_ptr"),
+            RVal::Cell(cell) => write!(f, "{}", cell.display()),
+        }
     }
 }

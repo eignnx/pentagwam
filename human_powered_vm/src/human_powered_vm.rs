@@ -19,7 +19,6 @@ use crate::human_powered_vm::{
 
 pub mod error;
 pub mod instr_fmt;
-pub mod val_fmt;
 pub mod vals;
 
 #[derive(Debug, Serialize, Deserialize, Default)]
