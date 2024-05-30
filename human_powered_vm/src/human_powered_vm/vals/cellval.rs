@@ -1,12 +1,6 @@
-use std::str::FromStr;
-
-use chumsky::{prelude::*, text::ident};
-
-use crate::human_powered_vm::error::{Error, Result};
-
 use self::rval::RVal;
-
 use super::{valty::ValTy, *};
+use chumsky::{prelude::*, text::ident};
 
 /// Different from [`Cell`](pentagwam::cell::Cell) because it needs to be able
 /// to compute subexpressions, and you don't want to have to deal with interned
@@ -36,17 +30,19 @@ impl CellVal {
         }
     }
 
-    pub fn parser() -> impl Parser<char, Self, Error = Simple<char>> {
+    pub fn parser(
+        rval: Recursive<'_, char, RVal, Simple<char>>,
+    ) -> impl Parser<char, Self, Error = Simple<char>> + '_ {
         let p_ref = just("Ref")
-            .ignore_then(RVal::parser().delimited_by(just('('), just(')')))
+            .ignore_then(rval.clone().delimited_by(just('('), just(')')))
             .map(CellVal::Ref);
 
         let p_rcd = just("Rcd")
-            .ignore_then(RVal::parser().delimited_by(just('('), just(')')))
+            .ignore_then(rval.clone().delimited_by(just('('), just(')')))
             .map(CellVal::Rcd);
 
         let p_int = just("Int")
-            .ignore_then(RVal::parser().delimited_by(just('('), just(')')))
+            .ignore_then(rval.clone().delimited_by(just('('), just(')')))
             .map(CellVal::Int);
 
         let p_sym = just("Sym")
@@ -58,25 +54,21 @@ impl CellVal {
             .try_map(|s: String, span| s.parse::<u8>().map_err(|e| Simple::custom(span, e)));
 
         let p_sig = just("Sig")
-            .ignore_then(ident().then(just('/').ignore_then(p_u8)))
-            .delimited_by(just('('), just(')'))
+            .ignore_then(
+                ident()
+                    .then_ignore(just('/'))
+                    .then(p_u8)
+                    .delimited_by(just('('), just(')')),
+            )
             .map(|(fname, arity)| CellVal::Sig { fname, arity });
 
         let p_lst = just("Lst")
-            .ignore_then(RVal::parser().delimited_by(just('('), just(')')))
+            .ignore_then(rval.clone().delimited_by(just('('), just(')')))
             .map(CellVal::Lst);
 
         let p_nil = just("Nil").map(|_| CellVal::Nil);
 
         choice((p_ref, p_rcd, p_int, p_sym, p_sig, p_lst, p_nil))
-    }
-}
-
-impl FromStr for CellVal {
-    type Err = Error;
-
-    fn from_str(text: &str) -> Result<Self> {
-        Ok(Self::parser().parse(text)?)
     }
 }
 

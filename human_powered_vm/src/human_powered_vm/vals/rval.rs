@@ -85,7 +85,7 @@ impl RVal {
 
             let field = text::ident().map(RVal::Field);
 
-            let cell_lit = CellVal::parser().map(Box::new).map(RVal::Cell);
+            let cell_lit = CellVal::parser(rval.clone()).map(Box::new).map(RVal::Cell);
 
             let index = rval
                 .clone()
