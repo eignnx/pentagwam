@@ -1,5 +1,7 @@
 use std::str::FromStr;
 
+use chumsky::{prelude::*, text::ident};
+
 use crate::human_powered_vm::error::{Error, Result};
 
 use self::rval::RVal;
@@ -33,59 +35,48 @@ impl CellVal {
             CellVal::Nil => None,
         }
     }
+
+    pub fn parser() -> impl Parser<char, Self, Error = Simple<char>> {
+        let p_ref = just("Ref")
+            .ignore_then(RVal::parser().delimited_by(just('('), just(')')))
+            .map(CellVal::Ref);
+
+        let p_rcd = just("Rcd")
+            .ignore_then(RVal::parser().delimited_by(just('('), just(')')))
+            .map(CellVal::Rcd);
+
+        let p_int = just("Int")
+            .ignore_then(RVal::parser().delimited_by(just('('), just(')')))
+            .map(CellVal::Int);
+
+        let p_sym = just("Sym")
+            .ignore_then(ident()) // TODO: make symbol literal RVal
+            .delimited_by(just('('), just(')'))
+            .map(CellVal::Sym);
+
+        let p_u8 = text::digits(10)
+            .try_map(|s: String, span| s.parse::<u8>().map_err(|e| Simple::custom(span, e)));
+
+        let p_sig = just("Sig")
+            .ignore_then(ident().then(just('/').ignore_then(p_u8)))
+            .delimited_by(just('('), just(')'))
+            .map(|(fname, arity)| CellVal::Sig { fname, arity });
+
+        let p_lst = just("Lst")
+            .ignore_then(RVal::parser().delimited_by(just('('), just(')')))
+            .map(CellVal::Lst);
+
+        let p_nil = just("Nil").map(|_| CellVal::Nil);
+
+        choice((p_ref, p_rcd, p_int, p_sym, p_sig, p_lst, p_nil))
+    }
 }
 
 impl FromStr for CellVal {
     type Err = Error;
 
-    fn from_str(cell_val: &str) -> Result<Self> {
-        match cell_val {
-            _ if cell_val.starts_with("Rcd(") && cell_val.ends_with(')') => {
-                let inner = &cell_val[4..cell_val.len() - 1];
-                let cell_ref: RVal = inner.parse()?;
-                Ok(CellVal::Rcd(cell_ref))
-            }
-            _ if cell_val.starts_with("Ref(") && cell_val.ends_with(')') => {
-                let inner = &cell_val[4..cell_val.len() - 1];
-                let cell_ref: RVal = inner.parse()?;
-                Ok(CellVal::Ref(cell_ref))
-            }
-            _ if cell_val.starts_with("Int(") && cell_val.ends_with(')') => {
-                let inner = &cell_val[4..cell_val.len() - 1];
-                let int: RVal = inner.parse()?;
-                Ok(CellVal::Int(int))
-            }
-            _ if cell_val.starts_with("Sym('") && cell_val.ends_with("')") => {
-                let sym_text = &cell_val[5..cell_val.len() - 2];
-                Ok(CellVal::Sym(sym_text.to_owned()))
-            }
-            _ if cell_val.starts_with("Sym(") && cell_val.ends_with(')') => {
-                let sym_text = &cell_val[4..cell_val.len() - 1];
-                Ok(CellVal::Sym(sym_text.to_owned()))
-            }
-            _ if cell_val.starts_with("Sig(") && cell_val.ends_with(')') => {
-                let inner = &cell_val[4..cell_val.len() - 1];
-                let (fname, arity) = inner
-                    .split_once('/')
-                    .ok_or(Error::CantParseFunctor(inner.to_owned()))?;
-                let fname = if fname.starts_with('\'') && fname.ends_with('\'') {
-                    &fname[1..fname.len() - 1]
-                } else {
-                    fname
-                };
-                Ok(CellVal::Sig {
-                    fname: fname.to_owned(),
-                    arity: arity.parse()?,
-                })
-            }
-            _ if cell_val.starts_with("Lst(") && cell_val.ends_with(')') => {
-                let inner = &cell_val[4..cell_val.len() - 1];
-                let cell_ref: RVal = inner.parse()?;
-                Ok(CellVal::Lst(cell_ref))
-            }
-            "Nil" => Ok(CellVal::Nil),
-            _ => Err(Error::UnknownRVal(cell_val.to_string())),
-        }
+    fn from_str(text: &str) -> Result<Self> {
+        Ok(Self::parser().parse(text)?)
     }
 }
 

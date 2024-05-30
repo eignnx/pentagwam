@@ -521,27 +521,6 @@ impl HumanPoweredVm {
                     );
                 }
             }
-            LVal::CellRef(const_cell_ref) => match rhs {
-                Val::Cell(cell) => self
-                    .mem
-                    .try_cell_write(*const_cell_ref, cell)
-                    .ok_or(Error::OutOfBoundsMemWrite(*const_cell_ref))?,
-                Val::CellRef(rhs_cell_ref) => {
-                    let rhs_cell = self
-                        .mem
-                        .try_cell_read(rhs_cell_ref)
-                        .ok_or(Error::OutOfBoundsMemRead(rhs_cell_ref))?;
-                    self.mem
-                        .try_cell_write(*const_cell_ref, rhs_cell)
-                        .ok_or(Error::OutOfBoundsMemWrite(*const_cell_ref))?;
-                }
-                Val::Usize(_) | Val::I32(_) => {
-                    return Err(Error::AssignmentTypeError {
-                        expected: "Cell or CellRef".into(),
-                        received: rval.ty(),
-                    })
-                }
-            },
         }
         Ok(rhs)
     }

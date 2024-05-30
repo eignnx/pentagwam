@@ -66,12 +66,6 @@ impl RVal {
                 .ignore_then(rval.clone())
                 .map(|inner| RVal::Deref(Box::new(inner)));
 
-            let index = rval
-                .clone()
-                .then(rval.clone())
-                .delimited_by(just("["), just("]"))
-                .map(|(base, offset)| RVal::Index(Box::new(base), Box::new(offset)));
-
             let instr_ptr = just("instr_ptr").or(just("ip")).map(|_| RVal::InstrPtr);
 
             let cell_ref_lit = just("@")
@@ -91,15 +85,24 @@ impl RVal {
 
             let field = text::ident().map(RVal::Field);
 
-            deref
-                .or(index)
-                .or(instr_ptr)
-                .or(cell_ref_lit)
-                .or(usize_lit)
-                .or(i32_lit)
-                .or(tmp_var)
-                // .or(CellVal::parser().map(RVal::Cell))
-                .or(field)
+            let cell_lit = CellVal::parser().map(Box::new).map(RVal::Cell);
+
+            let index = rval
+                .clone()
+                .then(rval.clone().delimited_by(just("["), just("]")))
+                .map(|(base, offset)| RVal::Index(Box::new(base), Box::new(offset)));
+
+            choice((
+                deref,
+                instr_ptr,
+                cell_ref_lit,
+                usize_lit,
+                i32_lit,
+                tmp_var,
+                cell_lit,
+                field,
+                index,
+            ))
         })
     }
 }
