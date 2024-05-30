@@ -1,7 +1,7 @@
 use derive_more::From;
 use pentagwam::{
     bc::instr::Instr,
-    cell::{Cell, Functor},
+    cell::Functor,
     defs::{CellRef, Sym},
     mem::Mem,
 };
@@ -14,10 +14,12 @@ use std::{
 
 use crate::human_powered_vm::{
     error::{Error, Result},
-    vals::{cellval::CellVal, lval::LVal, rval::RVal, val::Val, valty::ValTy},
+    vals::{lval::LVal, rval::RVal, val::Val, valty::ValTy},
 };
 
+pub mod cmds;
 pub mod error;
+pub mod eval;
 pub mod instr_fmt;
 pub mod vals;
 
@@ -93,6 +95,15 @@ impl HumanPoweredVm {
                 Ok(Default::default())
             }
             Err(e) => Err(e.into()),
+        }
+    }
+
+    fn populate_default_field_values(&mut self) {
+        // We'd like for the Deserialize implementation to look at the `ValTy`
+        // of the field and generate a default based on that, but I don't know
+        // how to do that. So we'll just post-process a bit.
+        for (_field, data) in self.fields.iter_mut() {
+            data.value = data.ty.default_val();
         }
     }
 
@@ -288,254 +299,6 @@ impl HumanPoweredVm {
         Ok(ControlFlow::Continue(()))
     }
 
-    fn program_listing(&self, rest: &[&str], program: &[Instr<Functor>]) -> Result<()> {
-        match rest {
-            [] => {
-                for (i, instr) in program.iter().enumerate() {
-                    println!("{:04}: {}", i, instr_fmt::display_instr(instr, &self.mem));
-                }
-            }
-            ["from", n] => {
-                let n = n.parse()?;
-                for (i, instr) in program.iter().enumerate().skip(n) {
-                    println!("{:04}: {}", i, instr_fmt::display_instr(instr, &self.mem));
-                }
-            }
-            ["first", n] => {
-                let n = n.parse()?;
-                for (i, instr) in program.iter().enumerate().take(n) {
-                    println!("{:04}: {}", i, instr_fmt::display_instr(instr, &self.mem));
-                }
-            }
-            ["next", n] => {
-                let n = n.parse()?;
-                for (i, instr) in program.iter().enumerate().skip(self.instr_ptr).take(n) {
-                    println!("{:04}: {}", i, instr_fmt::display_instr(instr, &self.mem));
-                }
-            }
-            ["last", n] => {
-                let n = n.parse()?;
-                let skip = program.len().saturating_sub(n);
-                for (i, instr) in program.iter().enumerate().skip(skip) {
-                    println!("{:04}: {}", i, instr_fmt::display_instr(instr, &self.mem));
-                }
-            }
-            ["prev" | "previous", n] => {
-                let n = n.parse()?;
-                let skip = self.instr_ptr.saturating_sub(n);
-                for (i, instr) in program.iter().enumerate().skip(skip).take(n) {
-                    println!("{:04}: {}", i, instr_fmt::display_instr(instr, &self.mem));
-                }
-            }
-            _ => println!("!> Unknown `list` sub-command `{}`.", rest.join(" ")),
-        }
-        Ok(())
-    }
-
-    fn eval_to_val(&self, rval: &RVal) -> Result<Val> {
-        match rval {
-            RVal::Deref(inner) => {
-                let val = self.eval_to_val(inner)?;
-                match val {
-                    Val::CellRef(r) | Val::Cell(Cell::Ref(r) | Cell::Rcd(r) | Cell::Lst(r)) => self
-                        .mem
-                        .try_cell_read(r)
-                        .map(Val::Cell)
-                        .ok_or(Error::OutOfBoundsMemRead(r)),
-                    Val::Cell(Cell::Int(_) | Cell::Sym(_) | Cell::Sig(_) | Cell::Nil)
-                    | Val::Usize(_)
-                    | Val::I32(_) => Err(Error::TypeError {
-                        expected: "CellRef, Ref, Rcd, or Lst".into(),
-                        received: val.ty(),
-                    }),
-                }
-            }
-            RVal::Index(base, offset) => {
-                let base = self.eval_to_val(base)?.expect_cell_ref()?;
-                let offset = self.eval_to_val(offset)?.expect_usize()?;
-                let addr = base + offset;
-                let cell = self
-                    .mem
-                    .try_cell_read(addr)
-                    .ok_or(Error::OutOfBoundsMemRead(addr))?;
-                Ok(Val::Cell(cell))
-            }
-            RVal::Usize(u) => Ok(Val::Usize(*u)),
-            RVal::I32(i) => Ok(Val::I32(*i)),
-            RVal::Cell(c) => Ok(Val::Cell(self.eval_cellval_to_cell(c)?)),
-            RVal::CellRef(r) => Ok(Val::CellRef(*r)),
-            RVal::Field(field) => {
-                if let Some(fdata) = self.fields.get(field) {
-                    Ok(fdata.value.clone())
-                } else {
-                    // check aliases:
-                    self.fields
-                        .values()
-                        .find_map(|fdata| {
-                            if fdata.aliases.contains(field) {
-                                Some(fdata.value.clone())
-                            } else {
-                                None
-                            }
-                        })
-                        .ok_or_else(|| Error::UndefinedField(field.to_string()))
-                }
-            }
-            RVal::TmpVar(name) => {
-                if let Some(fdata) = self.tmp_vars.get(name) {
-                    Ok(fdata.value.clone())
-                } else {
-                    self.tmp_vars
-                        .values()
-                        .find_map(|fdata| {
-                            if fdata.aliases.contains(name) {
-                                Some(fdata.value.clone())
-                            } else {
-                                None
-                            }
-                        })
-                        .ok_or_else(|| Error::UndefinedTmpVar(name.to_string()))
-                }
-            }
-            RVal::InstrPtr => Ok(Val::Usize(self.instr_ptr)),
-        }
-    }
-
-    fn eval_cellval_to_cell(&self, cell: &CellVal) -> Result<Cell> {
-        Ok(match cell {
-            CellVal::Ref(r) => Cell::Ref(self.eval_to_val(r)?.expect_cell_ref()?),
-            CellVal::Rcd(r) => Cell::Rcd(self.eval_to_val(r)?.expect_cell_ref()?),
-            CellVal::Lst(r) => Cell::Lst(self.eval_to_val(r)?.expect_cell_ref()?),
-            CellVal::Int(i) => Cell::Int(self.eval_to_val(i)?.expect_i32()?),
-            CellVal::Sym(text) => Cell::Sym(self.mem.intern_sym(text)),
-            CellVal::Sig { fname, arity } => Cell::Sig(self.mem.intern_functor(fname, *arity)),
-            CellVal::Nil => Cell::Nil,
-        })
-    }
-
-    fn print_rval(&self, rval_name: &str) -> Result<()> {
-        let val = self.eval_to_val(&rval_name.parse()?)?;
-        println!("=> {rval_name} == {}", val.display(&self.mem));
-        Ok(())
-    }
-
-    fn lval_set(&mut self, lval: &LVal, rval: &RVal) -> Result<Val> {
-        let rhs = self.eval_to_val(rval)?;
-        match &lval {
-            LVal::Deref(inner) => {
-                let inner = self.eval_to_val(inner)?;
-                match inner {
-                    Val::CellRef(r) => {
-                        if rhs.ty() != ValTy::AnyCellVal {
-                            return Err(Error::AssignmentTypeError {
-                                expected: "Cell".into(),
-                                received: rhs.ty(),
-                            });
-                        }
-                        self.mem
-                            .try_cell_write(r, rhs.expect_cell()?)
-                            .ok_or(Error::OutOfBoundsMemWrite(r))?;
-                    }
-                    Val::Cell(Cell::Ref(r) | Cell::Rcd(r) | Cell::Lst(r)) => {
-                        if rhs.ty() != ValTy::AnyCellVal {
-                            return Err(Error::AssignmentTypeError {
-                                expected: "Cell".into(),
-                                received: rhs.ty(),
-                            });
-                        }
-                        self.mem
-                            .try_cell_write(r, rhs.expect_cell()?)
-                            .ok_or(Error::OutOfBoundsMemWrite(r))?;
-                    }
-                    Val::Cell(Cell::Int(_) | Cell::Sym(_) | Cell::Sig(_) | Cell::Nil)
-                    | Val::I32(_)
-                    | Val::Usize(_) => {
-                        return Err(Error::AssignmentTypeError {
-                            expected: "CellRef, Ref, Rcd, or Lst".into(),
-                            received: inner.ty(),
-                        })
-                    }
-                }
-            }
-            LVal::InstrPtr => self.instr_ptr = rhs.expect_usize()?,
-            LVal::Field(field) => {
-                if let Some(fdata) = self.fields.get_mut(field) {
-                    fdata.assign_val(rhs.clone())?;
-                    println!("Wrote `{}` to `{field}`.", rhs.display(&self.mem));
-                } else if let Some((base_name, fdata)) = self
-                    .fields
-                    .iter_mut()
-                    .find(|(_base_name, fdata)| fdata.aliases.contains(field))
-                {
-                    fdata.assign_val(rhs.clone())?;
-                    println!(
-                        "Wrote `{}` to `{field}` (alias of `{base_name}`).",
-                        rhs.display(&self.mem)
-                    );
-                } else {
-                    // It must be a new field.
-                    self.fields.insert(
-                        field.to_string(),
-                        FieldData {
-                            value: rhs.clone(),
-                            ty: rhs.ty(),
-                            aliases: Default::default(),
-                        },
-                    );
-                    println!(
-                        "Created new field `self.{field}: {} = {}`.",
-                        rhs.ty(),
-                        rhs.display(&self.mem)
-                    );
-                }
-            }
-            LVal::TmpVar(var_name) => {
-                if let Some(fdata) = self.tmp_vars.get_mut(var_name) {
-                    fdata.assign_val(rhs.clone())?;
-                    println!("Wrote `{}` to `.{var_name}`.", rhs.display(&self.mem));
-                } else if let Some((base_name, fdata)) = self
-                    .tmp_vars
-                    .iter_mut()
-                    .find(|(_base_name, fdata)| fdata.aliases.contains(var_name))
-                {
-                    fdata.assign_val(rhs.clone())?;
-                    println!(
-                        "Wrote `{}` to `.{var_name}` (alias of `.{base_name}`).",
-                        rhs.display(&self.mem)
-                    );
-                } else {
-                    // It must be a new tmp var.
-                    self.tmp_vars.insert(
-                        var_name.to_string(),
-                        FieldData {
-                            value: rhs.clone(),
-                            ty: rhs.ty(),
-                            aliases: Default::default(),
-                        },
-                    );
-                    println!(
-                        "Created new temporary variable `.{var_name}: {} = {}`.",
-                        rhs.ty(),
-                        rhs.display(&self.mem)
-                    );
-                }
-            }
-        }
-        Ok(rhs)
-    }
-
-    fn assign_to_lval(&mut self, lval_name: &str, rhs_name: &str) -> Result<()> {
-        let lval = lval_name.parse()?;
-        let rval = rhs_name.parse()?;
-        let val = self.lval_set(&lval, &rval)?;
-        println!(
-            "Wrote `{}` to `{}`.",
-            val.display(&self.mem),
-            lval.display(&self.mem),
-        );
-        Ok(())
-    }
-
     fn print_help(&self) {
         println!();
         println!("Commands:");
@@ -563,14 +326,5 @@ impl HumanPoweredVm {
 
     pub fn intern_sym(&self, text: &str) -> Sym {
         self.mem.intern_sym(text)
-    }
-
-    fn populate_default_field_values(&mut self) {
-        // We'd like for the Deserialize implementation to look at the `ValTy`
-        // of the field and generate a default based on that, but I don't know
-        // how to do that. So we'll just post-process a bit.
-        for (_field, data) in self.fields.iter_mut() {
-            data.value = data.ty.default_val();
-        }
     }
 }
