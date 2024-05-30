@@ -1,6 +1,12 @@
 use std::fmt;
 
-use super::*;
+use derive_more::From;
+use pentagwam::{cell::Cell, defs::CellRef};
+use serde::{Deserialize, Serialize};
+
+use crate::human_powered_vm::error::{Error, Result};
+
+use super::valty::ValTy;
 
 #[derive(Debug, From, Clone, Serialize, Deserialize)]
 pub enum Val {

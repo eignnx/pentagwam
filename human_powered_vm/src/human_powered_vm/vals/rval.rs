@@ -1,6 +1,13 @@
-use super::*;
+use crate::human_powered_vm::error::{Error, Result};
+
+use crate::human_powered_vm::vals::cellval::CellVal;
+
 use chumsky::prelude::*;
+use derive_more::From;
+use pentagwam::defs::CellRef;
 use std::{fmt, str::FromStr};
+
+use super::valty::ValTy;
 
 #[derive(Debug, From, Clone)]
 pub enum RVal {
@@ -39,17 +46,17 @@ impl fmt::Display for RVal {
 }
 
 impl RVal {
-    pub fn ty(&self) -> valty::ValTy {
+    pub fn ty(&self) -> ValTy {
         match self {
-            RVal::Deref(_) => valty::ValTy::AnyCellVal,
-            RVal::Index(..) => valty::ValTy::AnyCellVal,
-            RVal::CellRef(_) => valty::ValTy::CellRef,
-            RVal::Usize(_) => valty::ValTy::Usize,
-            RVal::I32(_) => valty::ValTy::I32,
-            RVal::Field(field) => valty::ValTy::TypeOf(field.clone()),
-            RVal::TmpVar(name) => valty::ValTy::TypeOf(name.clone()),
-            RVal::InstrPtr => valty::ValTy::Usize,
-            RVal::Cell(_) => valty::ValTy::AnyCellVal,
+            RVal::Deref(_) => ValTy::AnyCellVal,
+            RVal::Index(..) => ValTy::AnyCellVal,
+            RVal::CellRef(_) => ValTy::CellRef,
+            RVal::Usize(_) => ValTy::Usize,
+            RVal::I32(_) => ValTy::I32,
+            RVal::Field(field) => ValTy::TypeOf(field.clone()),
+            RVal::TmpVar(name) => ValTy::TypeOf(name.clone()),
+            RVal::InstrPtr => ValTy::Usize,
+            RVal::Cell(_) => ValTy::AnyCellVal,
         }
     }
 

@@ -1,4 +1,9 @@
+use pentagwam::{defs::CellRef, mem::Mem};
+
+use self::rval::RVal;
+
 use super::*;
+use crate::human_powered_vm::error::{Error, Result};
 use std::{fmt, str::FromStr};
 
 #[derive(Debug)]

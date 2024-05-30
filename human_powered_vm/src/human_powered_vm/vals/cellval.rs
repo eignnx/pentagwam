@@ -1,5 +1,9 @@
 use std::str::FromStr;
 
+use crate::human_powered_vm::error::{Error, Result};
+
+use self::rval::RVal;
+
 use super::{valty::ValTy, *};
 
 /// Different from [`Cell`](pentagwam::cell::Cell) because it needs to be able

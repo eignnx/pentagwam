@@ -1,4 +1,11 @@
+use pentagwam::{
+    cell::{Cell, Functor},
+    defs::{CellRef, Sym},
+};
+use serde::{Deserialize, Serialize};
+
 use super::*;
+use crate::human_powered_vm::error::{Error, Result};
 use std::{fmt, str::FromStr};
 
 #[derive(Debug, Clone, PartialEq, Eq, Serialize, Deserialize)]
