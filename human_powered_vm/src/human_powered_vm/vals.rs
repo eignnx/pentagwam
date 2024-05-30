@@ -82,6 +82,7 @@ impl Val {
 #[derive(Debug, From, Clone)]
 pub(crate) enum RVal {
     Deref(Box<RVal>),
+    Index(Box<RVal>, Box<RVal>),
     #[from]
     CellRef(CellRef),
     Usize(usize),
@@ -172,6 +173,7 @@ impl RVal {
     pub(crate) fn ty(&self) -> ValTy {
         match self {
             RVal::Deref(_) => ValTy::AnyCellVal,
+            RVal::Index(..) => ValTy::AnyCellVal,
             RVal::CellRef(_) => ValTy::CellRef,
             RVal::Usize(_) => ValTy::Usize,
             RVal::I32(_) => ValTy::I32,
@@ -207,6 +209,7 @@ impl fmt::Display for RVal {
     fn fmt(&self, f: &mut fmt::Formatter) -> fmt::Result {
         match self {
             RVal::Deref(inner) => write!(f, "*{inner}"),
+            RVal::Index(base, offset) => write!(f, "{base}[{offset}]"),
             RVal::CellRef(cell_ref) => write!(f, "{cell_ref}"),
             RVal::Usize(u) => write!(f, "{u}"),
             RVal::I32(i) => write!(f, "{i:+}"),
@@ -227,6 +230,12 @@ impl FromStr for RVal {
                 let inner = &rval[1..];
                 let rval: RVal = inner.parse()?;
                 Ok(RVal::Deref(Box::new(rval)))
+            }
+            _ if rval.ends_with(']') && rval.contains('[') => {
+                let (base, offset) = rval.strip_suffix(']').unwrap().split_once('[').unwrap();
+                let base = base.parse()?;
+                let offset = offset.parse()?;
+                Ok(RVal::Index(Box::new(base), Box::new(offset)))
             }
             _ if rval.starts_with('@') => {
                 let u = rval[1..].parse::<usize>()?;

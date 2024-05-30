@@ -67,6 +67,12 @@ impl std::fmt::Display for RValFmt<'_> {
     fn fmt(&self, f: &mut std::fmt::Formatter<'_>) -> std::fmt::Result {
         match self.rval {
             RVal::Deref(inner) => write!(f, "*{}", inner.display(self.mem)),
+            RVal::Index(base, offset) => write!(
+                f,
+                "{}[{}]",
+                base.display(self.mem),
+                offset.display(self.mem),
+            ),
             RVal::CellRef(r) => write!(f, "{r}"),
             RVal::Usize(u) => write!(f, "{u}"),
             RVal::I32(i) => write!(f, "{i:+}"),

@@ -353,6 +353,16 @@ impl HumanPoweredVm {
                     }),
                 }
             }
+            RVal::Index(base, offset) => {
+                let base = self.eval_to_val(base)?.expect_cell_ref()?;
+                let offset = self.eval_to_val(offset)?.expect_usize()?;
+                let addr = base + offset;
+                let cell = self
+                    .mem
+                    .try_cell_read(addr)
+                    .ok_or(Error::OutOfBoundsMemRead(addr))?;
+                Ok(Val::Cell(cell))
+            }
             RVal::Usize(u) => Ok(Val::Usize(*u)),
             RVal::I32(i) => Ok(Val::I32(*i)),
             RVal::Cell(c) => Ok(Val::Cell(self.eval_cellval_to_cell(c)?)),
