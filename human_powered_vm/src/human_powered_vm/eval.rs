@@ -96,18 +96,9 @@ impl HumanPoweredVm {
             LVal::Deref(inner) => {
                 let inner = self.eval_to_val(inner)?;
                 match inner {
-                    Val::CellRef(r) => {
-                        if rhs.ty() != ValTy::AnyCellVal {
-                            return Err(Error::AssignmentTypeError {
-                                expected: "Cell".into(),
-                                received: rhs.ty(),
-                            });
-                        }
-                        self.mem
-                            .try_cell_write(r, rhs.expect_cell()?)
-                            .ok_or(Error::OutOfBoundsMemWrite(r))?;
-                    }
-                    Val::Cell(Cell::Ref(r) | Cell::Rcd(r) | Cell::Lst(r)) => {
+                    // *@123 <- <rval>
+                    // *Ref(@123) <- <rval>
+                    Val::CellRef(r) | Val::Cell(Cell::Ref(r) | Cell::Rcd(r) | Cell::Lst(r)) => {
                         if rhs.ty() != ValTy::AnyCellVal {
                             return Err(Error::AssignmentTypeError {
                                 expected: "Cell".into(),
@@ -128,7 +119,22 @@ impl HumanPoweredVm {
                     }
                 }
             }
+
+            // arr[123] <- <rval>
+            LVal::Index(base, offset) => {
+                let base = self.eval_to_val(base)?.expect_cell_ref()?;
+                let offset = self.eval_to_val(offset)?.expect_usize()?;
+                let addr = base + offset;
+                self.mem
+                    .try_cell_write(addr, rhs.expect_cell()?)
+                    .ok_or(Error::OutOfBoundsMemWrite(addr))?;
+            }
+
+            // instr_ptr <- <rval>
             LVal::InstrPtr => self.instr_ptr = rhs.expect_usize()?,
+
+            // some_field <- <rval>
+            // some_field_alias <- <rval>
             LVal::Field(field) => {
                 if let Some(fdata) = self.fields.get_mut(field) {
                     fdata.assign_val(rhs.clone())?;
@@ -160,6 +166,9 @@ impl HumanPoweredVm {
                     );
                 }
             }
+
+            // .tmp_var <- <rval>
+            // .tmp_var_alias <- <rval>
             LVal::TmpVar(var_name) => {
                 if let Some(fdata) = self.tmp_vars.get_mut(var_name) {
                     fdata.assign_val(rhs.clone())?;
@@ -192,6 +201,7 @@ impl HumanPoweredVm {
                 }
             }
         }
+
         Ok(rhs)
     }
 }

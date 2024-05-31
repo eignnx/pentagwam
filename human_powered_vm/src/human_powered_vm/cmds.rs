@@ -1,6 +1,7 @@
+use chumsky::{primitive::end, Parser};
 use pentagwam::{bc::instr::Instr, cell::Functor};
 
-use crate::human_powered_vm::instr_fmt;
+use crate::human_powered_vm::{instr_fmt, vals::rval::RVal};
 
 use super::{error::Result, HumanPoweredVm};
 
@@ -50,8 +51,13 @@ impl HumanPoweredVm {
     }
 
     pub(super) fn print_rval(&self, rval_name: &str) -> Result<()> {
-        let val = self.eval_to_val(&rval_name.parse()?)?;
-        println!("=> {rval_name} == {}", val.display(&self.mem));
+        let rval = RVal::parser().then_ignore(end()).parse(rval_name)?;
+        let val = self.eval_to_val(&rval)?;
+        println!(
+            "=> {} == {}",
+            rval.display(&self.mem),
+            val.display(&self.mem),
+        );
         Ok(())
     }
 

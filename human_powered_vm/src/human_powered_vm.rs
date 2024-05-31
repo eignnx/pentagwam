@@ -224,6 +224,14 @@ impl HumanPoweredVm {
                     println!("Field `{field_name}` can't be deleted because it doesn't exist.")
                 }
             }
+            ["push", "term" | "tm", rest @ ..] => {
+                use chumsky::Parser;
+                let term_text: String = rest.join(" ");
+                let term_parser = pentagwam::syntax::Term::parser();
+                let term = term_parser.parse::<_, &str>(term_text.as_str())?;
+                let cell_ref = term.serialize(&mut self.mem);
+                println!("Serialized Prolog term `{term_text}` into memory at `{cell_ref}`.");
+            }
             ["push", rval] => {
                 let rval: RVal = rval.parse()?;
                 let val = self.eval_to_val(&rval)?;
@@ -291,10 +299,9 @@ impl HumanPoweredVm {
                 let disp = self.mem.display_term(cell_ref);
                 println!("=> {} == {disp}", rval.display(&self.mem));
             }
-            [rval] => {
-                self.print_rval(rval)?;
+            rval => {
+                self.print_rval(&rval.join(" ").to_string())?;
             }
-            _ => println!("!> Unknown command `{}`.", cmd.join(" ")),
         }
         Ok(ControlFlow::Continue(()))
     }

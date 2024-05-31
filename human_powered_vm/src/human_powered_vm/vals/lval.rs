@@ -10,6 +10,7 @@ pub enum LVal {
     TmpVar(String),
     InstrPtr,
     Deref(Box<RVal>),
+    Index(Box<RVal>, Box<RVal>),
 }
 
 impl fmt::Display for LVal {
@@ -19,6 +20,7 @@ impl fmt::Display for LVal {
             LVal::TmpVar(name) => write!(f, ".{name}"),
             LVal::InstrPtr => write!(f, "self.instr_ptr"),
             LVal::Deref(inner) => write!(f, "*{inner}"),
+            LVal::Index(base, offset) => write!(f, "{base}[{offset}]"),
         }
     }
 }
@@ -36,7 +38,11 @@ impl LVal {
             .map(Box::new)
             .map(LVal::Deref);
 
-        choice((p_field, p_tmp_var, p_instr_ptr, p_deref))
+        let p_index = RVal::parser()
+            .then(RVal::parser().delimited_by(just('['), just(']')))
+            .map(|(base, offset)| LVal::Index(Box::new(base), Box::new(offset)));
+
+        choice((p_field, p_tmp_var, p_instr_ptr, p_deref, p_index))
     }
 }
 
@@ -66,6 +72,12 @@ impl std::fmt::Display for LValFmt<'_> {
             LVal::TmpVar(name) => write!(f, ".{name}"),
             LVal::InstrPtr => write!(f, "InstrPtr"),
             LVal::Deref(rval) => write!(f, "*{}", rval.display(self.mem)),
+            LVal::Index(base, offset) => write!(
+                f,
+                "{}[{}]",
+                base.display(self.mem),
+                offset.display(self.mem)
+            ),
         }
     }
 }

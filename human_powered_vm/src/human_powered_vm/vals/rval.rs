@@ -88,22 +88,27 @@ impl RVal {
 
             let cell_lit = CellVal::parser(rval.clone()).map(Box::new).map(RVal::Cell);
 
-            let index = rval
-                .clone()
-                .then(rval.clone().delimited_by(just("["), just("]")))
-                .map(|(base, offset)| RVal::Index(Box::new(base), Box::new(offset)));
-
-            choice((
-                deref,
+            let atomic = choice((
                 instr_ptr,
                 cell_ref_lit,
                 usize_lit,
                 i32_lit,
                 tmp_var,
-                cell_lit,
                 field,
-                index,
-            ))
+                cell_lit,
+            ));
+
+            let index = atomic
+                .clone()
+                .then(
+                    rval.clone()
+                        .delimited_by(just("["), just("]"))
+                        .repeated()
+                        .at_least(1),
+                )
+                .foldl(|a, b| RVal::Index(Box::new(a), Box::new(b)));
+
+            choice((deref, index, atomic))
         })
     }
 }
