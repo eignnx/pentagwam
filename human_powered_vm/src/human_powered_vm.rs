@@ -21,6 +21,7 @@ pub mod cmds;
 pub mod error;
 pub mod eval;
 pub mod instr_fmt;
+pub mod scenario;
 pub mod vals;
 
 #[derive(Debug, Serialize, Deserialize, Default)]
@@ -132,8 +133,7 @@ impl HumanPoweredVm {
             }
 
             let cmd = self.prompt("Enter a command");
-            let cmd_split = cmd.split_whitespace().collect::<Vec<_>>();
-            match self.handle_cmd(&cmd_split, program) {
+            match self.handle_cmd(&cmd, program) {
                 Ok(ControlFlow::Break(())) => break,
                 Ok(ControlFlow::Continue(())) => continue,
                 Err(e) => println!("!> {e}"),
@@ -142,8 +142,9 @@ impl HumanPoweredVm {
         Ok(())
     }
 
-    fn handle_cmd(&mut self, cmd: &[&str], program: &[Instr<Functor>]) -> Result<ControlFlow<()>> {
-        match cmd {
+    fn handle_cmd(&mut self, cmd: &str, program: &[Instr<Functor>]) -> Result<ControlFlow<()>> {
+        let cmd_split = cmd.split_whitespace().collect::<Vec<_>>();
+        match &cmd_split[..] {
             [] => {
                 println!("=> No command entered.");
                 println!();
@@ -165,7 +166,7 @@ impl HumanPoweredVm {
                         println!("{:-<80}", "");
                     } else {
                         println!(
-                            "!> No documentation available instruction `{}`",
+                            "!> No documentation available for instruction `{}`",
                             instr_fmt::display_instr(instr, &self.mem)
                         );
                     }

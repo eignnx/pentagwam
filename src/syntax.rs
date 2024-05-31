@@ -88,7 +88,20 @@ impl Term {
     }
 
     pub fn parser_non_end_terminated() -> impl Parser<char, Term, Error = Simple<char>> + Clone {
-        let sym = text::ident::<char, Simple<char>>().padded();
+        let quoted_sym = just('\'')
+            .ignore_then(filter(|c| *c != '\'').repeated().collect())
+            .then_ignore(just('\''));
+
+        let unquoted_sym =
+            text::ident::<char, Simple<char>>().validate(move |name: String, span, emit_err| {
+                let first_char = name.chars().next().unwrap();
+                if !first_char.is_lowercase() {
+                    emit_err(Simple::custom(span, "expected symbol, found variable"));
+                }
+                name
+            });
+
+        let sym = choice((quoted_sym, unquoted_sym)).padded();
 
         recursive::<char, Term, _, _, _>(move |term| {
             let int = just('-')

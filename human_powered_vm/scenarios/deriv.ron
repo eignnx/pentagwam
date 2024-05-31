@@ -1,0 +1,44 @@
+Scenario(
+    description: "
+        d(U*V, X, DU*V+U*DV) :-
+            d(U, X, DU),
+            d(V, X, DV).
+
+        ?- d(x*y, x, D).
+    ",
+
+    setup: [
+        "A1 <- tm '*'(x, y)",
+        "A2 <- tm x",
+        "A3 <- tm D",
+    ],
+
+    symbols: [
+        /*0*/ "*",
+        /*1*/ "+",
+        /*2*/ "d",
+        /*3*/ "x",
+        /*4*/ "y",
+    ],
+
+    program: [
+        GetStructure(1, Functor(sym: 0, arity: 2)),
+        UnifyVariable(Reg(1)),
+        UnifyVariable(Local(1)),
+        GetVariable(Local(2), 2),
+        GetStructure(4, Functor(sym: 1, arity: 2)),
+        UnifyVariable(Reg(4)),
+        UnifyVariable(Reg(5)),
+        GetStructure(4, Functor(sym: 0, arity: 2)),
+        UnifyVariable(Reg(3)),
+        UnifyValue(Local(1)),
+        GetStructure(5, Functor(sym: 0, arity: 2)),
+        UnifyValue(Reg(1)),
+        UnifyVariable(Local(3)),
+        Call(functor: Functor(sym: 2, arity: 3), nvars_in_env: 3),
+        PutValue(var_addr: 1, arg: 1),
+        PutValue(var_addr: 2, arg: 2),
+        PutValue(var_addr: 3, arg: 3),
+        Execute(Functor(sym: 2, arity: 3)),
+    ]
+)

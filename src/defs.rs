@@ -68,6 +68,7 @@ impl std::ops::AddAssign<usize> for CellRef {
 }
 
 #[derive(Debug, Clone, Copy, PartialEq, Eq, PartialOrd, Ord, Hash, Serialize, Deserialize)]
+#[serde(transparent)]
 pub struct Sym(UInt);
 
 impl Sym {

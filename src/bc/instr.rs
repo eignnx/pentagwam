@@ -1,13 +1,15 @@
 use core::fmt;
 
 use derive_more::From;
+use serde::{Deserialize, Serialize};
 
 use crate::{cell::Functor, defs::Sym};
 
 /// A unique identifier for a label.
 pub type Lbl = usize;
 
-#[derive(Debug, Clone, Copy, PartialEq, Eq, From)]
+#[derive(Debug, Clone, Copy, PartialEq, Eq, From, Serialize, Deserialize)]
+#[serde(transparent)]
 pub struct Reg(pub u8);
 
 impl From<Arg> for Reg {
@@ -16,7 +18,8 @@ impl From<Arg> for Reg {
     }
 }
 
-#[derive(Debug, Clone, Copy, PartialEq, Eq, From)]
+#[derive(Debug, Clone, Copy, PartialEq, Eq, From, Serialize, Deserialize)]
+#[serde(transparent)]
 pub struct Arg(pub u8);
 
 impl From<Reg> for Arg {
@@ -31,7 +34,8 @@ impl fmt::Display for Arg {
     }
 }
 
-#[derive(Debug, Clone, Copy, PartialEq, Eq, From)]
+#[derive(Debug, Clone, Copy, PartialEq, Eq, From, Serialize, Deserialize)]
+#[serde(transparent)]
 pub struct Local(pub u16);
 
 impl fmt::Display for Local {
@@ -40,7 +44,7 @@ impl fmt::Display for Local {
     }
 }
 
-#[derive(Debug, Clone, Copy, PartialEq, Eq, From)]
+#[derive(Debug, Clone, Copy, PartialEq, Eq, From, Serialize, Deserialize)]
 pub enum Slot {
     #[from]
     Reg(Reg),
@@ -89,7 +93,7 @@ impl From<Instr<Lbl>> for LabelledInstr {
     }
 }
 
-#[derive(Debug, Clone, PartialEq, Eq, documented::DocumentedVariants)]
+#[derive(Debug, Clone, PartialEq, Eq, documented::DocumentedVariants, Serialize, Deserialize)]
 pub enum Instr<L> {
     /// # switch_on_term Lv, Lc, Ll, Ls
     /// This instruction provides access to a group of clauses with a non-
@@ -447,7 +451,9 @@ pub fn put_structure(arg: Arg, functor: Functor) -> LabelledInstr {
     Instr::PutStructure(functor, arg).into()
 }
 
-#[derive(Debug, Clone, Copy, From, PartialEq, Eq, PartialOrd, Ord, Hash)]
+#[derive(
+    Debug, Clone, Copy, From, PartialEq, Eq, PartialOrd, Ord, Hash, Serialize, Deserialize,
+)]
 pub enum Constant {
     #[from]
     Sym(Sym),
