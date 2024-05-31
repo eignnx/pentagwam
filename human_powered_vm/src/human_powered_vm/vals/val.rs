@@ -58,6 +58,19 @@ impl Val {
         }
     }
 
+    pub fn expect_cell_ref_like(&self) -> Result<CellRef> {
+        match self {
+            Val::CellRef(cell_ref)
+            | Val::Cell(Cell::Ref(cell_ref))
+            | Val::Cell(Cell::Rcd(cell_ref))
+            | Val::Cell(Cell::Lst(cell_ref)) => Ok(*cell_ref),
+            other => Err(Error::TypeError {
+                expected: "CellRef, Ref, Rcd, or Lst".into(),
+                received: other.ty(),
+            }),
+        }
+    }
+
     pub fn expect_i32(&self) -> Result<i32> {
         match self {
             Val::I32(i) => Ok(*i),

@@ -13,29 +13,20 @@ impl HumanPoweredVm {
         match rval {
             RVal::Deref(inner) => {
                 let val = self.eval_to_val(inner)?;
-                match val {
-                    Val::CellRef(r) | Val::Cell(Cell::Ref(r) | Cell::Rcd(r) | Cell::Lst(r)) => self
-                        .mem
-                        .try_cell_read(r)
-                        .map(Val::Cell)
-                        .ok_or(Error::OutOfBoundsMemRead(r)),
-                    Val::Cell(Cell::Int(_) | Cell::Sym(_) | Cell::Sig(_) | Cell::Nil)
-                    | Val::Usize(_)
-                    | Val::I32(_) => Err(Error::TypeError {
-                        expected: "CellRef, Ref, Rcd, or Lst".into(),
-                        received: val.ty(),
-                    }),
-                }
+                let cell_ref = val.expect_cell_ref_like()?;
+                self.mem
+                    .try_cell_read(cell_ref)
+                    .map(Val::Cell)
+                    .ok_or(Error::OutOfBoundsMemRead(cell_ref))
             }
             RVal::Index(base, offset) => {
-                let base = self.eval_to_val(base)?.expect_cell_ref()?;
+                let base = self.eval_to_val(base)?.expect_cell_ref_like()?;
                 let offset = self.eval_to_val(offset)?.expect_usize()?;
                 let addr = base + offset;
-                let cell = self
-                    .mem
+                self.mem
                     .try_cell_read(addr)
-                    .ok_or(Error::OutOfBoundsMemRead(addr))?;
-                Ok(Val::Cell(cell))
+                    .map(Val::Cell)
+                    .ok_or(Error::OutOfBoundsMemRead(addr))
             }
             RVal::Usize(u) => Ok(Val::Usize(*u)),
             RVal::I32(i) => Ok(Val::I32(*i)),
