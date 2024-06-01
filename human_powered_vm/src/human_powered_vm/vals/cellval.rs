@@ -57,10 +57,16 @@ impl CellVal {
 
         let p_sig = just("Sig")
             .ignore_then(
-                ident()
-                    .then_ignore(just('/'))
-                    .then(p_u8)
-                    .delimited_by(just('('), just(')')),
+                choice((
+                    just('\'')
+                        .ignore_then(filter(|c| *c != '\'').repeated())
+                        .then_ignore(just('\''))
+                        .collect(),
+                    ident(),
+                ))
+                .then_ignore(just('/'))
+                .then(p_u8)
+                .delimited_by(just('('), just(')')),
             )
             .map(|(fname, arity)| CellVal::Sig { fname, arity });
 
