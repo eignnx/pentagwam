@@ -11,6 +11,7 @@ Scenario(
         "A1 <- tm '*'(x, y)",
         "A2 <- tm x",
         "A3 <- tm D",
+        "S  <- A1"
     ],
 
     program: [
