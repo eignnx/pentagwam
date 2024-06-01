@@ -175,35 +175,44 @@ impl HumanPoweredVm {
             ["fields" | "f"] => {
                 println!("Virtual Machine Fields:");
                 for (field, fdata) in self.fields.iter() {
-                    print!(
+                    let def = format!(
                         "\t{field}: {} = {}",
                         fdata.ty,
                         self.mem.display(&fdata.value)
                     );
                     if !fdata.aliases.is_empty() {
-                        print!("\t\taliases: ");
-                        for (i, alias) in fdata.aliases.iter().enumerate() {
-                            print!("{sep}{alias}", sep = if i > 0 { ", " } else { "" });
-                        }
+                        let joined = fdata
+                            .aliases
+                            .iter()
+                            .map(AsRef::as_ref)
+                            .collect::<Vec<&str>>()
+                            .join(", ");
+                        let aliases = format!("aliases: {joined}");
+                        println!("{def:<40}{aliases};");
+                    } else {
+                        println!("{def};");
                     }
-                    println!(";");
                 }
 
                 println!();
                 println!("Temporary Variables:");
-                for (var_name, fdata) in self.tmp_vars.iter() {
-                    print!(
-                        "\t.{var_name}: {} = {}",
-                        fdata.ty,
-                        self.mem.display(&fdata.value)
-                    );
-                    if !fdata.aliases.is_empty() {
-                        print!("\t\taliases: ");
-                        for (i, alias) in fdata.aliases.iter().enumerate() {
-                            print!("{sep}.{alias}", sep = if i > 0 { ", " } else { "" });
+                if self.tmp_vars.is_empty() {
+                    println!("\t<no temporary variables defined>");
+                } else {
+                    for (var_name, fdata) in self.tmp_vars.iter() {
+                        print!(
+                            "\t.{var_name}: {} = {}",
+                            fdata.ty,
+                            self.mem.display(&fdata.value)
+                        );
+                        if !fdata.aliases.is_empty() {
+                            print!("\t\taliases: ");
+                            for (i, alias) in fdata.aliases.iter().enumerate() {
+                                print!("{sep}.{alias}", sep = if i > 0 { ", " } else { "" });
+                            }
                         }
+                        println!(";");
                     }
-                    println!(";");
                 }
             }
             ["list" | "l", rest @ ..] => {
