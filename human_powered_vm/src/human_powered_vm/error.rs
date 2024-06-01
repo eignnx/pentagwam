@@ -41,7 +41,7 @@ impl fmt::Display for Error {
             Error::UnknownLVal(lval) => write!(f, "Unknown l-value `{lval}`."),
             Error::AssignmentTypeError { expected, received } => write!(
                 f,
-                "Assignment type error: Expected `{expected}`, but received `{received:?}`."
+                "Assignment type error: Could not assign value of type `{received:?}` to a location which holds `{expected}`s."
             ),
             Error::TypeError { expected, received } => write!(
                 f,
