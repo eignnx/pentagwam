@@ -32,6 +32,10 @@ pub enum Error {
     RonDeSpannedError(ron::de::SpannedError),
     #[from]
     ChumskyParseError(Vec<chumsky::error::Simple<char>>),
+    BadAddressOfArgument {
+        reason: &'static str,
+        value: String,
+    },
 }
 
 impl fmt::Display for Error {
@@ -70,6 +74,9 @@ impl fmt::Display for Error {
                     writeln!(f, "\t{e}")?;
                 }
                 Ok(())
+            }
+            Error::BadAddressOfArgument { reason, value } => {
+                writeln!(f, "Bad address-of argument `{value}`: {reason}")
             }
         }
     }

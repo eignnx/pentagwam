@@ -352,7 +352,8 @@ impl HumanPoweredVm {
         println!();
         println!("  R-Values: expressions which can evaluate to a base value (<val>).");
         println!("    <rval> ::= <usize> | <i32> | <sym> | <tmp_var> | <field>");
-        println!("             | <rval>.* | <rval>[<rval>] | <cell_ref> | <cell>");
+        println!("             | <rva>.& | <rval>.* | <rval>[<rval>] ");
+        println!("             | <cell_ref> | <cell>");
         println!();
         println!("    <val>   ::= <usize> | <i32> | <sym> | <cell_ref> | <cell>");
         println!("    <usize> ::= 0 | 1 | 2 | ...");

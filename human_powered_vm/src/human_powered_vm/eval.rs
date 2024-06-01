@@ -11,6 +11,7 @@ use super::{
 impl HumanPoweredVm {
     pub(super) fn eval_to_val(&self, rval: &RVal) -> Result<Val> {
         match rval {
+            RVal::AddressOf(inner) => self.eval_address_of_to_val(inner),
             RVal::Deref(inner) => {
                 let val = self.eval_to_val(inner)?;
                 let cell_ref = val.try_as_cell_ref_like()?;
@@ -67,6 +68,41 @@ impl HumanPoweredVm {
                 }
             }
             RVal::InstrPtr => Ok(Val::Usize(self.instr_ptr)),
+        }
+    }
+
+    fn eval_address_of_to_val(&self, inner: &RVal) -> Result<Val> {
+        match inner {
+            RVal::Index(base, offset) => {
+                let base = self.eval_to_val(base)?.try_as_cell_ref_like()?;
+                let offset = self.eval_to_val(offset)?.try_as_usize()?;
+                Ok(Val::CellRef(base + offset))
+            }
+            RVal::Deref(inner) => Ok(Val::CellRef(
+                self.eval_to_val(inner.as_ref())?.try_as_cell_ref()?,
+            )),
+            RVal::AddressOf(_) => Err(Error::BadAddressOfArgument {
+                reason: "Can't take the address of an address-of expression.",
+                value: self.mem.display(inner).to_string(),
+            }),
+            RVal::CellRef(_) => Err(Error::BadAddressOfArgument {
+                reason: "Can't take the address of a cell reference literal \
+                         because that is still just a temporary; it lives \
+                         nowhere.",
+                value: self.mem.display(inner).to_string(),
+            }),
+            RVal::Usize(_) | RVal::I32(_) | RVal::Symbol(_) | RVal::Cell(_) => {
+                Err(Error::BadAddressOfArgument {
+                    reason: "Can't take the address of a temporary value.",
+                    value: self.mem.display(inner).to_string(),
+                })
+            }
+            RVal::InstrPtr | RVal::Field(_) | RVal::TmpVar(_) => Err(Error::BadAddressOfArgument {
+                reason: "Can't take the address of a field or temp var \
+                                 because those won't exist at runtime (they're \
+                                 just for the human-powered VM).",
+                value: self.mem.display(inner).to_string(),
+            }),
         }
     }
 

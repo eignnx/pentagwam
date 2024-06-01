@@ -12,6 +12,7 @@ use super::valty::ValTy;
 
 #[derive(Debug, From, Clone)]
 pub enum RVal {
+    AddressOf(Box<RVal>),
     Deref(Box<RVal>),
     Index(Box<RVal>, Box<RVal>),
     #[from]
@@ -34,6 +35,7 @@ impl Default for RVal {
 impl RVal {
     pub fn ty(&self) -> ValTy {
         match self {
+            RVal::AddressOf(_) => ValTy::CellRef,
             RVal::Deref(_) => ValTy::Cell,
             RVal::Index(..) => ValTy::Cell,
             RVal::CellRef(_) => ValTy::CellRef,
@@ -103,31 +105,29 @@ impl RVal {
 
     pub fn parser() -> impl Parser<char, Self, Error = Simple<char>> + Clone {
         recursive::<_, _, _, _, Simple<char>>(|rval| {
-            enum IndexOrDeref {
+            enum PostfixOp {
                 Index(RVal),
                 Deref,
+                AddressOf,
             }
 
-            let index_or_deref = Self::atomic_rval_parser(rval.clone())
+            Self::atomic_rval_parser(rval.clone())
                 .then(
                     choice((
                         rval.clone()
                             .delimited_by(just("["), just("]"))
-                            .map(IndexOrDeref::Index),
-                        just(".*").map(|_| IndexOrDeref::Deref),
+                            .map(PostfixOp::Index),
+                        just(".*").map(|_| PostfixOp::Deref),
+                        just(".&").map(|_| PostfixOp::AddressOf),
                     ))
-                    .repeated(), // .at_least(1),
+                    .repeated(),
                 )
                 .foldl(|a, b| match b {
-                    IndexOrDeref::Deref => RVal::Deref(Box::new(a)),
-                    IndexOrDeref::Index(index) => RVal::Index(Box::new(a), Box::new(index)),
+                    PostfixOp::Deref => RVal::Deref(Box::new(a)),
+                    PostfixOp::Index(index) => RVal::Index(Box::new(a), Box::new(index)),
+                    PostfixOp::AddressOf => RVal::AddressOf(Box::new(a)),
                 })
-                .boxed();
-
-            choice((
-                index_or_deref,
-                // Self::atomic_rval_parser(rval.clone())
-            ))
+                .boxed()
         })
     }
 }
@@ -143,6 +143,7 @@ impl FromStr for RVal {
 impl DisplayViaMem for RVal {
     fn display_via_mem(&self, f: &mut fmt::Formatter<'_>, mem: &Mem) -> fmt::Result {
         match self {
+            RVal::AddressOf(inner) => write!(f, "{}.&", mem.display(inner)),
             RVal::Deref(inner) => write!(f, "{}.*", mem.display(inner)),
             RVal::Index(base, offset) => {
                 write!(f, "{}[{}]", mem.display(base), mem.display(offset))
