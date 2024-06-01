@@ -21,9 +21,9 @@ HumanPoweredVm(
             aliases: [],
         ),
         "structure_ptr": FieldData(
-            ty: AnyCellVal,
+            ty: CellRef,
             aliases: ["S"],
         ),
     },
-    instr_ptr: 0,
+    instr_ptr: 1,
 )
