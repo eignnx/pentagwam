@@ -169,7 +169,7 @@ impl HumanPoweredVm {
                 }
             }
             ["quit" | "q" | ":wq" | ":q"] => {
-                println!("Exiting...");
+                println!("Saving field declarations and exiting...");
                 return Ok(ControlFlow::Break(()));
             }
             ["fields" | "f"] => {
