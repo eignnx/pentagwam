@@ -33,16 +33,19 @@ impl LVal {
 
         let p_instr_ptr = just("instr_ptr").or(just("ip")).map(|_| LVal::InstrPtr);
 
-        let p_deref = just('*')
-            .ignore_then(RVal::parser())
+        let p_index_or_deref = RVal::atomic_rval_parser(RVal::parser())
             .map(Box::new)
-            .map(LVal::Deref);
+            .then_with(|rval| {
+                let rval_cpy = rval.clone();
+                choice((
+                    just(".*").map(move |_| LVal::Deref(rval_cpy.clone())),
+                    RVal::parser()
+                        .delimited_by(just('['), just(']'))
+                        .map(move |offset| LVal::Index(rval.clone(), Box::new(offset))),
+                ))
+            });
 
-        let p_index = RVal::parser()
-            .then(RVal::parser().delimited_by(just('['), just(']')))
-            .map(|(base, offset)| LVal::Index(Box::new(base), Box::new(offset)));
-
-        choice((p_field, p_tmp_var, p_instr_ptr, p_deref, p_index))
+        choice((p_field, p_tmp_var, p_instr_ptr, p_index_or_deref))
     }
 }
 
@@ -60,7 +63,7 @@ impl DisplayViaMem for LVal {
             LVal::Field(field) => write!(f, "self.{field}"),
             LVal::TmpVar(name) => write!(f, ".{name}"),
             LVal::InstrPtr => write!(f, "InstrPtr"),
-            LVal::Deref(rval) => write!(f, "*{}", mem.display(rval)),
+            LVal::Deref(rval) => write!(f, "{}.*", mem.display(rval)),
             LVal::Index(base, offset) => {
                 write!(f, "{}[{}]", mem.display(base), mem.display(offset))
             }

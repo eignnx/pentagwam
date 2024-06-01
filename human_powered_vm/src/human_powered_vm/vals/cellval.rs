@@ -33,9 +33,9 @@ impl CellVal {
         }
     }
 
-    pub fn parser(
-        rval: Recursive<'_, char, RVal, Simple<char>>,
-    ) -> impl Parser<char, Self, Error = Simple<char>> + '_ + Clone {
+    pub fn parser<'a>(
+        rval: impl Parser<char, RVal, Error = Simple<char>> + 'a + Clone,
+    ) -> impl Parser<char, Self, Error = Simple<char>> + 'a + Clone {
         let p_ref = just("Ref")
             .ignore_then(rval.clone().delimited_by(just('('), just(')')))
             .map(CellVal::Ref);

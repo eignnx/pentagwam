@@ -3,7 +3,7 @@ use core::fmt;
 use chumsky::{primitive::end, Parser};
 use pentagwam::{bc::instr::Instr, mem::DisplayViaMem};
 
-use crate::human_powered_vm::vals::rval::RVal;
+use crate::human_powered_vm::vals::{lval::LVal, rval::RVal};
 
 use super::{error::Result, HumanPoweredVm};
 
@@ -68,8 +68,8 @@ impl HumanPoweredVm {
     }
 
     pub(super) fn assign_to_lval(&mut self, lval_name: &str, rhs_name: &str) -> Result<()> {
-        let lval = lval_name.parse()?;
-        let rval = rhs_name.parse()?;
+        let lval: LVal = lval_name.parse()?;
+        let rval: RVal = rhs_name.parse()?;
         let val = self.lval_set(&lval, &rval)?;
         println!(
             "Wrote `{}` to `{}`.",

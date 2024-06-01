@@ -33,7 +33,7 @@ impl Default for RVal {
 impl fmt::Display for RVal {
     fn fmt(&self, f: &mut fmt::Formatter) -> fmt::Result {
         match self {
-            RVal::Deref(inner) => write!(f, "*{inner}"),
+            RVal::Deref(inner) => write!(f, "{inner}.*"),
             RVal::Index(base, offset) => write!(f, "{base}[{offset}]"),
             RVal::CellRef(cell_ref) => write!(f, "{cell_ref}"),
             RVal::Usize(u) => write!(f, "{u}"),
@@ -61,54 +61,75 @@ impl RVal {
         }
     }
 
-    pub fn parser() -> impl Parser<char, Self, Error = Simple<char>> {
+    pub fn atomic_rval_parser<'a>(
+        rval: impl Parser<char, RVal, Error = Simple<char>> + 'a + Clone,
+    ) -> impl Parser<char, Self, Error = Simple<char>> + 'a {
+        let instr_ptr = just("instr_ptr").or(just("ip")).map(|_| RVal::InstrPtr);
+
+        let cell_lit = CellVal::parser(rval).map(Box::new).map(RVal::Cell);
+
+        let cell_ref_lit = just("@")
+            .ignore_then(text::digits(10))
+            .try_map(|s: String, span| s.parse::<usize>().map_err(|e| Simple::custom(span, e)))
+            .map(|u| RVal::CellRef(CellRef::new(u)));
+
+        let usize_lit = text::digits(10)
+            .try_map(|s: String, span| s.parse::<usize>().map_err(|e| Simple::custom(span, e)))
+            .map(RVal::Usize);
+
+        let i32_lit = one_of(['-', '+'])
+            .then_with(|sign| {
+                let sign = if sign == '-' { -1 } else { 1 };
+                text::digits(10).try_map(move |s: String, span| {
+                    s.parse::<i32>()
+                        .map(move |x| x * sign)
+                        .map_err(|e| Simple::custom(span, e))
+                })
+            })
+            .map(RVal::I32);
+
+        let tmp_var = just(".").ignore_then(text::ident()).map(RVal::TmpVar);
+
+        let field = text::ident().map(RVal::Field);
+
+        choice((
+            instr_ptr,
+            cell_lit,
+            cell_ref_lit,
+            usize_lit,
+            i32_lit,
+            tmp_var,
+            field,
+        ))
+    }
+
+    pub fn parser() -> impl Parser<char, Self, Error = Simple<char>> + Clone {
         recursive::<_, _, _, _, Simple<char>>(|rval| {
-            let deref = just("*")
-                .ignore_then(rval.clone())
-                .map(|inner| RVal::Deref(Box::new(inner)));
+            enum IndexOrDeref {
+                Index(RVal),
+                Deref,
+            }
 
-            let instr_ptr = just("instr_ptr").or(just("ip")).map(|_| RVal::InstrPtr);
-
-            let cell_ref_lit = just("@")
-                .ignore_then(text::digits(10))
-                .try_map(|s: String, span| s.parse::<usize>().map_err(|e| Simple::custom(span, e)))
-                .map(|u| RVal::CellRef(CellRef::new(u)));
-
-            let usize_lit = text::digits(10)
-                .try_map(|s: String, span| s.parse::<usize>().map_err(|e| Simple::custom(span, e)))
-                .map(RVal::Usize);
-
-            let i32_lit = text::digits(10)
-                .try_map(|s: String, span| s.parse::<i32>().map_err(|e| Simple::custom(span, e)))
-                .map(RVal::I32);
-
-            let tmp_var = just(".").ignore_then(text::ident()).map(RVal::TmpVar);
-
-            let field = text::ident().map(RVal::Field);
-
-            let cell_lit = CellVal::parser(rval.clone()).map(Box::new).map(RVal::Cell);
-
-            let atomic = choice((
-                instr_ptr,
-                cell_ref_lit,
-                usize_lit,
-                i32_lit,
-                tmp_var,
-                field,
-                cell_lit,
-            ));
-
-            let index = atomic
-                .clone()
+            let index_or_deref = Self::atomic_rval_parser(rval.clone())
                 .then(
-                    rval.clone()
-                        .delimited_by(just("["), just("]"))
-                        .repeated()
-                        .at_least(1),
+                    choice((
+                        rval.clone()
+                            .delimited_by(just("["), just("]"))
+                            .map(IndexOrDeref::Index),
+                        just(".*").map(|_| IndexOrDeref::Deref),
+                    ))
+                    .repeated(), // .at_least(1),
                 )
-                .foldl(|a, b| RVal::Index(Box::new(a), Box::new(b)));
+                .foldl(|a, b| match b {
+                    IndexOrDeref::Deref => RVal::Deref(Box::new(a)),
+                    IndexOrDeref::Index(index) => RVal::Index(Box::new(a), Box::new(index)),
+                })
+                .boxed();
 
-            choice((deref, index, atomic))
+            choice((
+                index_or_deref,
+                // Self::atomic_rval_parser(rval.clone())
+            ))
         })
     }
 }
