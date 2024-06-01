@@ -313,6 +313,51 @@ impl std::fmt::Display for DisplayCell<'_> {
     }
 }
 
+pub trait DisplayViaMem {
+    fn display_via_mem(&self, f: &mut fmt::Formatter<'_>, mem: &Mem) -> fmt::Result;
+}
+
+impl<T: DisplayViaMem> DisplayViaMem for &T {
+    fn display_via_mem(&self, f: &mut fmt::Formatter<'_>, mem: &Mem) -> fmt::Result {
+        (*self).display_via_mem(f, mem)
+    }
+}
+
+impl<T: DisplayViaMem> DisplayViaMem for Box<T> {
+    fn display_via_mem(&self, f: &mut fmt::Formatter<'_>, mem: &Mem) -> fmt::Result {
+        (**self).display_via_mem(f, mem)
+    }
+}
+
+impl<T: DisplayViaMem> DisplayViaMem for std::rc::Rc<T> {
+    fn display_via_mem(&self, f: &mut fmt::Formatter<'_>, mem: &Mem) -> fmt::Result {
+        (**self).display_via_mem(f, mem)
+    }
+}
+
+impl DisplayViaMem for String {
+    fn display_via_mem(&self, f: &mut fmt::Formatter<'_>, _mem: &Mem) -> fmt::Result {
+        write!(f, "{}", self)
+    }
+}
+
+pub struct MemCtx<'m, T: DisplayViaMem> {
+    mem: &'m Mem,
+    value: &'m T,
+}
+
+impl Mem {
+    pub fn display<'m, T: DisplayViaMem>(&'m self, value: &'m T) -> MemCtx<'m, T> {
+        MemCtx { mem: self, value }
+    }
+}
+
+impl<'m, T: DisplayViaMem> std::fmt::Display for MemCtx<'m, T> {
+    fn fmt(&self, f: &mut fmt::Formatter<'_>) -> fmt::Result {
+        self.value.display_via_mem(f, self.mem)
+    }
+}
+
 #[test]
 fn test_heap() {
     let mut mem = Mem::new();

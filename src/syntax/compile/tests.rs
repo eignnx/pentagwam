@@ -67,7 +67,7 @@ fn compile_derivative_ex() {
         Instr::UnifyValue(Slot::arg(1)),
         Instr::UnifyVariable(Slot::local(3)),
         Instr::Call {
-            functor: d,
+            lbl: d,
             nvars_in_env: 3,
         },
         Instr::PutValue {
@@ -85,7 +85,7 @@ fn compile_derivative_ex() {
         Instr::Execute(d),
     ]
     .into_iter()
-    .map(|i| todo!())
+    .map(|i: Instr<Functor>| todo!())
     .collect();
 
     assert_eq!(out, expected);

@@ -153,7 +153,7 @@ impl CompilerState {
     fn compile_multi_goal_clause_body(
         &self,
         goals: &[Term],
-        out: &mut Vec<LabelledInstr>,
+        #[allow(clippy::ptr_arg)] _out: &mut Vec<LabelledInstr>,
     ) -> Result<()> {
         todo!()
     }

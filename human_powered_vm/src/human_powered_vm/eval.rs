@@ -129,7 +129,7 @@ impl HumanPoweredVm {
             LVal::Field(field) => {
                 if let Some(fdata) = self.fields.get_mut(field) {
                     fdata.assign_val(rhs.clone())?;
-                    println!("Wrote `{}` to `{field}`.", rhs.display(&self.mem));
+                    println!("Wrote `{}` to `{field}`.", self.mem.display(&rhs));
                 } else if let Some((base_name, fdata)) = self
                     .fields
                     .iter_mut()
@@ -138,7 +138,7 @@ impl HumanPoweredVm {
                     fdata.assign_val(rhs.clone())?;
                     println!(
                         "Wrote `{}` to `{field}` (alias of `{base_name}`).",
-                        rhs.display(&self.mem)
+                        self.mem.display(&rhs)
                     );
                 } else {
                     // It must be a new field.
@@ -153,7 +153,7 @@ impl HumanPoweredVm {
                     println!(
                         "Created new field `self.{field}: {} = {}`.",
                         rhs.ty(),
-                        rhs.display(&self.mem)
+                        self.mem.display(&rhs)
                     );
                 }
             }
@@ -163,7 +163,7 @@ impl HumanPoweredVm {
             LVal::TmpVar(var_name) => {
                 if let Some(fdata) = self.tmp_vars.get_mut(var_name) {
                     fdata.assign_val(rhs.clone())?;
-                    println!("Wrote `{}` to `.{var_name}`.", rhs.display(&self.mem));
+                    println!("Wrote `{}` to `.{var_name}`.", self.mem.display(&rhs));
                 } else if let Some((base_name, fdata)) = self
                     .tmp_vars
                     .iter_mut()
@@ -172,7 +172,7 @@ impl HumanPoweredVm {
                     fdata.assign_val(rhs.clone())?;
                     println!(
                         "Wrote `{}` to `.{var_name}` (alias of `.{base_name}`).",
-                        rhs.display(&self.mem)
+                        self.mem.display(&rhs)
                     );
                 } else {
                     // It must be a new tmp var.
@@ -187,7 +187,7 @@ impl HumanPoweredVm {
                     println!(
                         "Created new temporary variable `.{var_name}: {} = {}`.",
                         rhs.ty(),
-                        rhs.display(&self.mem)
+                        self.mem.display(&rhs)
                     );
                 }
             }

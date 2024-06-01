@@ -1,13 +1,13 @@
 use derive_more::From;
 use pentagwam::{
     bc::instr::Instr,
-    cell::Functor,
     defs::{CellRef, Sym},
-    mem::Mem,
+    mem::{DisplayViaMem, Mem},
 };
 use serde::{Deserialize, Serialize};
 use std::{
     collections::{BTreeMap, BTreeSet},
+    fmt::Display,
     io::{Read, Write},
     ops::ControlFlow,
 };
@@ -20,7 +20,6 @@ use crate::human_powered_vm::{
 pub mod cmds;
 pub mod error;
 pub mod eval;
-pub mod instr_fmt;
 pub mod scenario;
 pub mod vals;
 
@@ -117,15 +116,11 @@ impl HumanPoweredVm {
         input.trim().to_string()
     }
 
-    pub fn run(&mut self, program: &[Instr<Functor>]) -> Result<()> {
+    pub fn run<L: Display, S: DisplayViaMem>(&mut self, program: &[Instr<L, S>]) -> Result<()> {
         loop {
             println!();
             if let Some(instr) = program.get(self.instr_ptr) {
-                println!(
-                    "instr #{:04}: {}",
-                    self.instr_ptr,
-                    instr_fmt::display_instr(instr, &self.mem)
-                );
+                println!("instr #{:04}: {}", self.instr_ptr, self.mem.display(instr));
                 println!();
             } else {
                 println!("[Instruction pointer beyond end of program]");
@@ -142,7 +137,11 @@ impl HumanPoweredVm {
         Ok(())
     }
 
-    fn handle_cmd(&mut self, cmd: &str, program: &[Instr<Functor>]) -> Result<ControlFlow<()>> {
+    fn handle_cmd<L: std::fmt::Display, S: DisplayViaMem>(
+        &mut self,
+        cmd: &str,
+        program: &[Instr<L, S>],
+    ) -> Result<ControlFlow<()>> {
         let cmd_split = cmd.split_whitespace().collect::<Vec<_>>();
         match &cmd_split[..] {
             [] => {
@@ -157,17 +156,14 @@ impl HumanPoweredVm {
                     if let Some(docs) = instr.doc_comment() {
                         println!("{:-^80}", "INSTRUCTION DOCUMENTATION");
                         println!();
-                        println!(
-                            "{:^80}",
-                            instr_fmt::display_instr(instr, &self.mem).to_string()
-                        );
+                        println!("{:^80}", self.mem.display(instr).to_string());
                         println!();
                         println!("{docs}");
                         println!("{:-<80}", "");
                     } else {
                         println!(
                             "!> No documentation available for instruction `{}`",
-                            instr_fmt::display_instr(instr, &self.mem)
+                            self.mem.display(instr)
                         );
                     }
                 }
@@ -182,7 +178,7 @@ impl HumanPoweredVm {
                     print!(
                         "\t{field}: {} = {}",
                         fdata.ty,
-                        fdata.value.display(&self.mem)
+                        self.mem.display(&fdata.value)
                     );
                     if !fdata.aliases.is_empty() {
                         print!("\t\taliases: ");
@@ -199,7 +195,7 @@ impl HumanPoweredVm {
                     print!(
                         "\t.{var_name}: {} = {}",
                         fdata.ty,
-                        fdata.value.display(&self.mem)
+                        self.mem.display(&fdata.value)
                     );
                     if !fdata.aliases.is_empty() {
                         print!("\t\taliases: ");
@@ -238,7 +234,7 @@ impl HumanPoweredVm {
                 let val = self.eval_to_val(&rval)?;
                 let cell = val.expect_cell()?;
                 self.mem.push(cell);
-                println!("Pushed `{}` onto top of heap.", val.display(&self.mem));
+                println!("Pushed `{}` onto top of heap.", self.mem.display(&val));
             }
             [lval, "<-", "term" | "tm", rest @ ..] => {
                 use chumsky::Parser;
@@ -252,7 +248,7 @@ impl HumanPoweredVm {
                 self.lval_set(&lval, &rval)?;
                 println!(
                     "CellRef `{cell_ref}` saved into `{}`.",
-                    lval.display(&self.mem)
+                    self.mem.display(&lval)
                 );
             }
             [lval, "<-", rhs] => {
@@ -298,7 +294,7 @@ impl HumanPoweredVm {
                 let val = self.eval_to_val(&rval)?;
                 let cell_ref = val.expect_cell_ref()?;
                 let disp = self.mem.display_term(cell_ref);
-                println!("=> {} == {disp}", rval.display(&self.mem));
+                println!("=> {} == {disp}", self.mem.display(&rval));
             }
             rval => {
                 self.print_rval(&rval.join(" ").to_string())?;

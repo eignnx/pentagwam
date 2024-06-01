@@ -1,4 +1,8 @@
+use core::fmt;
+
 use serde::{Deserialize, Serialize};
+
+use crate::mem::{DisplayViaMem, Mem};
 
 type UInt = u32;
 
@@ -84,5 +88,11 @@ impl Sym {
 impl std::fmt::Display for Sym {
     fn fmt(&self, f: &mut std::fmt::Formatter<'_>) -> std::fmt::Result {
         write!(f, "${}", self.0)
+    }
+}
+
+impl DisplayViaMem for Sym {
+    fn display_via_mem(&self, f: &mut fmt::Formatter<'_>, mem: &Mem) -> fmt::Result {
+        write!(f, "{}", self.resolve(mem))
     }
 }

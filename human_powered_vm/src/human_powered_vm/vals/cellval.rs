@@ -1,6 +1,9 @@
+use core::fmt;
+
 use self::rval::RVal;
 use super::{valty::ValTy, *};
 use chumsky::{prelude::*, text::ident};
+use pentagwam::mem::{DisplayViaMem, Mem};
 
 /// Different from [`Cell`](pentagwam::cell::Cell) because it needs to be able
 /// to compute subexpressions, and you don't want to have to deal with interned
@@ -72,19 +75,9 @@ impl CellVal {
     }
 }
 
-pub struct FmtCellVal<'a> {
-    cell: &'a CellVal,
-}
-
-impl CellVal {
-    pub fn display(&self) -> FmtCellVal<'_> {
-        FmtCellVal { cell: self }
-    }
-}
-
-impl std::fmt::Display for FmtCellVal<'_> {
-    fn fmt(&self, f: &mut std::fmt::Formatter<'_>) -> std::fmt::Result {
-        match self.cell {
+impl DisplayViaMem for CellVal {
+    fn display_via_mem(&self, f: &mut fmt::Formatter<'_>, _mem: &Mem) -> fmt::Result {
+        match self {
             CellVal::Int(i) => write!(f, "{i:+}"),
             CellVal::Sig { fname, arity } => {
                 if fname.contains(|c: char| !c.is_alphanumeric() && c != '_')

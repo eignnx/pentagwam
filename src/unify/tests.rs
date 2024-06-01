@@ -307,7 +307,7 @@ fn var_points_to_rcd() {
     let t2_src = "f(g(99))";
 
     {
-        let mut mem = unify_rec(t1_src, t2_src, true);
+        let mem = unify_rec(t1_src, t2_src, true);
         let_assert!(Some(cell) = mem.cell_from_var_name("X"));
         let_assert!(Cell::Rcd(r) = cell);
         let f = mem.resolve_ref_to_cell(r);
@@ -318,7 +318,7 @@ fn var_points_to_rcd() {
     }
 
     {
-        let mut vm = unify_vm(t1_src, t2_src, true);
+        let vm = unify_vm(t1_src, t2_src, true);
         let_assert!(Some(cell) = vm.mem.cell_from_var_name("X"));
         let_assert!(Cell::Rcd(r) = cell);
         let f = vm.mem.resolve_ref_to_cell(r);

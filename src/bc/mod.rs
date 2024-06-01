@@ -5,6 +5,7 @@ use crate::{bc::vm::Vm, mem::Mem};
 
 #[macro_use]
 pub mod instr;
+pub mod instr_fmt;
 pub mod vm;
 
 macro_rules! wam_code {
@@ -24,8 +25,8 @@ macro_rules! wam_code_impl {
             [
                 $($finished;)*
                 LabelledInstr {
-                    lbl:Some($lbl),
-                    instr: $instr.instr
+                    lbl: Some($lbl),
+                    instr: $instr,
                 };
             ]
         )
@@ -37,7 +38,7 @@ macro_rules! wam_code_impl {
                 $($finished;)*
                 LabelledInstr {
                     lbl: None,
-                    instr: $instr.instr
+                    instr: $instr,
                 };
             ]
         )
@@ -57,7 +58,7 @@ fn push_struct_arg() {
     let abc = mem.intern_sym("abc");
 
     let bc = wam_code! {
-        put_structure(Arg(1), foo_4);
+        Instr::PutStructure(foo_4, Arg(1));
         // set_variable(Arg(3));
         // set_constant(abc);
         // set_constant(123);
@@ -77,10 +78,10 @@ fn inside_clause() {
 
     // p(tree(X,L,R)) :- …
     let bc = wam_code! {
-        get_structure(Arg(1), tree_3);
-        unify_variable(Arg(2));
-        unify_variable(Arg(3));
-        unify_variable(Arg(4));
+        Instr::GetStructure(Arg(1), tree_3);
+        Instr::UnifyVariable(Arg(2).into());
+        Instr::UnifyVariable(Arg(3).into());
+        Instr::UnifyVariable(Arg(4).into());
     };
 
     Vm::new(mem).with_code(bc).step();
@@ -109,27 +110,32 @@ fn concatenate_example() {
 
     let bc = wam_code! {
         concatenate_3:
-            switch_on_term(c1a, c1, c2, fail);
+        Instr::SwitchOnTerm {
+            on_var: c1a,
+            on_const: c1,
+            on_list: c2,
+            on_struct: fail,
+        };
 
         // Clause 1
         c1a:
-            try_me_else(c2a);
+            Instr::TryMeElse(c2a);
         c1:
-            get_nil(Arg(1));
-            get_value(Arg(2), Arg(3));
-            proceed();
+            Instr::GetNil(Arg(1));
+            Instr::GetValue(Arg(2).into(), Arg(3));
+            Instr::Proceed;
 
         // Clause 2
         c2a:
-            trust_me_else(fail);
+            Instr::TrustMeElse(fail);
         c2:
-            get_list(Arg(1));
-            unify_variable(Reg(4));
-            unify_variable(Arg(1));
-            get_list(Arg(3));
-            unify_value(Reg(4));
-            unify_variable(Arg(3));
-            execute(concatenate_3);
+            Instr::GetList(Arg(1));
+            Instr::UnifyVariable(Reg(4).into());
+            Instr::UnifyVariable(Arg(1).into());
+            Instr::GetList(Arg(3));
+            Instr::UnifyValue(Reg(4).into());
+            Instr::UnifyVariable(Arg(3).into());
+            Instr::Execute(concatenate_3);
     };
 
     println!("{:?}", bc);

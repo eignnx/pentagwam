@@ -3,7 +3,11 @@ use core::fmt;
 use derive_more::From;
 use serde::{Deserialize, Serialize};
 
-use crate::{cell::Functor, defs::Sym};
+use crate::{
+    cell::Functor,
+    defs::Sym,
+    mem::{DisplayViaMem, Mem},
+};
 
 /// A unique identifier for a label.
 pub type Lbl = usize;
@@ -94,7 +98,7 @@ impl From<Instr<Lbl>> for LabelledInstr {
 }
 
 #[derive(Debug, Clone, PartialEq, Eq, documented::DocumentedVariants, Serialize, Deserialize)]
-pub enum Instr<L> {
+pub enum Instr<L, S = Sym> {
     /// # switch_on_term Lv, Lc, Ll, Ls
     /// This instruction provides access to a group of clauses with a non-
     /// variable in the first head argument. It causes a dispatch on the type
@@ -143,7 +147,8 @@ pub enum Instr<L> {
     ///     P := Proc
     ///
     Call {
-        functor: L,
+        /// The label or address of the predicate to call.
+        lbl: L,
         /// The number of variables in the environment at this point. Accessed
         /// as an offset from `CP` by certain instructions in the called
         /// procedure.
@@ -209,7 +214,7 @@ pub enum Instr<L> {
     ///
     ///     Ai := C
     ///
-    PutConst(Constant, Arg),
+    PutConst(Constant<S>, Arg),
 
     /// This instruction simply puts the constant `[]` into the `Arg` register.
     PutNil(Arg),
@@ -234,7 +239,7 @@ pub enum Instr<L> {
     /// The instruction pushes the functor for the structure onto the heap, and
     /// puts a corresponding structure pointer into the `Arg` register.
     /// Execution then proceeds in *write* mode.
-    PutStructure(Functor, Arg),
+    PutStructure(Functor<S>, Arg),
 
     /// # put_list Ai
     /// This instruction marks the beginning of a list occurring as a goal
@@ -263,7 +268,7 @@ pub enum Instr<L> {
     /// constant C, and the binding is trailed if necessary. Otherwise, the
     /// result is compared with the constant C, and if the two values are not
     /// identical, backtracking occurs.
-    GetConst(Arg, Constant),
+    GetConst(Arg, Constant<S>),
 
     /// This instruction represents a head argument that is the constant `[]`.
     /// The instruction gets the value of register Ai and dereferences it. If
@@ -321,7 +326,7 @@ pub enum Instr<L> {
     /// its functor is identical to functor F, the pointer S is set to point
     /// to the arguments of the structure, and execution proceeds in "read"
     /// mode. Otherwise, backtracking occurs.
-    GetStructure(Arg, Functor),
+    GetStructure(Arg, Functor<S>),
 
     /// # unify_variable Vn
     /// This instruction represents a head structure argument that is an
@@ -353,12 +358,12 @@ pub enum Instr<L> {
     UnifyValue(Slot),
 }
 
-impl<L> Instr<L> {
+impl<L, S> Instr<L, S> {
     pub fn doc_comment(&self) -> Option<&'static str> {
         documented::DocumentedVariants::get_variant_docs(self).ok()
     }
 
-    pub fn map_lbl<M>(self, f: impl Fn(L) -> M) -> Instr<M> {
+    pub fn map_lbl<M>(self, f: impl Fn(L) -> M) -> Instr<M, S> {
         match self {
             Instr::SwitchOnTerm {
                 on_var,
@@ -384,10 +389,10 @@ impl<L> Instr<L> {
             Instr::GetStructure(arg, functor) => Instr::GetStructure(arg, functor),
             Instr::GetConst(arg, constant) => Instr::GetConst(arg, constant),
             Instr::Call {
-                functor,
+                lbl: functor,
                 nvars_in_env,
             } => Instr::Call {
-                functor: f(functor),
+                lbl: f(functor),
                 nvars_in_env,
             },
             Instr::GetVoid => Instr::GetVoid,
@@ -401,66 +406,20 @@ impl<L> Instr<L> {
     }
 }
 
-pub fn switch_on_term(on_var: Lbl, on_const: Lbl, on_list: Lbl, on_struct: Lbl) -> LabelledInstr {
-    Instr::SwitchOnTerm {
-        on_var,
-        on_const,
-        on_list,
-        on_struct,
-    }
-    .into()
-}
-
-pub fn try_me_else(lbl: Lbl) -> LabelledInstr {
-    Instr::TryMeElse(lbl).into()
-}
-
-pub fn get_nil(arg: Arg) -> LabelledInstr {
-    Instr::GetNil(arg).into()
-}
-
-pub fn get_value(slot: impl Into<Slot>, arg: Arg) -> LabelledInstr {
-    Instr::GetValue(slot.into(), arg).into()
-}
-
-pub fn proceed() -> LabelledInstr {
-    Instr::Proceed.into()
-}
-
-pub fn trust_me_else(lbl: Lbl) -> LabelledInstr {
-    Instr::TrustMeElse(lbl).into()
-}
-
-pub fn get_list(arg: Arg) -> LabelledInstr {
-    Instr::GetList(arg).into()
-}
-
-pub fn unify_variable(slot: impl Into<Slot>) -> LabelledInstr {
-    Instr::UnifyVariable(slot.into()).into()
-}
-
-pub fn unify_value(slot: impl Into<Slot>) -> LabelledInstr {
-    Instr::UnifyValue(slot.into()).into()
-}
-
-pub fn execute(lbl: Lbl) -> LabelledInstr {
-    Instr::Execute(lbl).into()
-}
-
-pub fn put_structure(arg: Arg, functor: Functor) -> LabelledInstr {
-    Instr::PutStructure(functor, arg).into()
-}
-
 #[derive(
     Debug, Clone, Copy, From, PartialEq, Eq, PartialOrd, Ord, Hash, Serialize, Deserialize,
 )]
-pub enum Constant {
-    #[from]
-    Sym(Sym),
+pub enum Constant<S = Sym> {
+    Sym(S),
     #[from]
     Int(i32),
 }
 
-pub fn get_structure(arg: Arg, functor: Functor) -> LabelledInstr {
-    Instr::GetStructure(arg, functor).into()
+impl<S: DisplayViaMem> DisplayViaMem for Constant<S> {
+    fn display_via_mem(&self, f: &mut fmt::Formatter<'_>, mem: &Mem) -> fmt::Result {
+        match self {
+            Self::Sym(sym) => sym.display_via_mem(f, mem),
+            Self::Int(i) => write!(f, "{}", i),
+        }
+    }
 }

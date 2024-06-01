@@ -1,7 +1,7 @@
 use super::rval::RVal;
 use crate::human_powered_vm::error::{Error, Result};
 use chumsky::prelude::*;
-use pentagwam::mem::Mem;
+use pentagwam::mem::{DisplayViaMem, Mem};
 use std::{fmt, str::FromStr};
 
 #[derive(Debug)]
@@ -54,30 +54,16 @@ impl FromStr for LVal {
     }
 }
 
-pub struct LValFmt<'a> {
-    pub(crate) lval: &'a LVal,
-    pub(crate) mem: &'a Mem,
-}
-
-impl LVal {
-    pub fn display<'a>(&'a self, mem: &'a Mem) -> LValFmt<'a> {
-        LValFmt { lval: self, mem }
-    }
-}
-
-impl std::fmt::Display for LValFmt<'_> {
-    fn fmt(&self, f: &mut std::fmt::Formatter<'_>) -> std::fmt::Result {
-        match self.lval {
+impl DisplayViaMem for LVal {
+    fn display_via_mem(&self, f: &mut fmt::Formatter<'_>, mem: &Mem) -> fmt::Result {
+        match self {
             LVal::Field(field) => write!(f, "self.{field}"),
             LVal::TmpVar(name) => write!(f, ".{name}"),
             LVal::InstrPtr => write!(f, "InstrPtr"),
-            LVal::Deref(rval) => write!(f, "*{}", rval.display(self.mem)),
-            LVal::Index(base, offset) => write!(
-                f,
-                "{}[{}]",
-                base.display(self.mem),
-                offset.display(self.mem)
-            ),
+            LVal::Deref(rval) => write!(f, "*{}", mem.display(rval)),
+            LVal::Index(base, offset) => {
+                write!(f, "{}[{}]", mem.display(base), mem.display(offset))
+            }
         }
     }
 }
