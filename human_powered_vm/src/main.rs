@@ -15,12 +15,12 @@ fn main() -> Result<()> {
             let mut file = std::fs::File::open(full_path)?;
             ron::de::from_reader(&mut file)?
         }
-        [program_name] => {
-            eprintln!("Usage: {program_name} <scenario-file>");
-            std::process::exit(1);
-        }
         _ => {
+            eprintln!();
             eprintln!("Usage: human_powered_vm <scenario-file>");
+            eprintln!();
+            eprintln!("\tPlease provide a scenario file.");
+            eprintln!();
             std::process::exit(1);
         }
     };

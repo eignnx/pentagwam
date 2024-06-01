@@ -236,6 +236,12 @@ impl HumanPoweredVm {
                 self.mem.push(cell);
                 println!("Pushed `{}` onto top of heap.", self.mem.display(&val));
             }
+            [_, "=", tm @ ("term" | "tm"), ..] => {
+                println!("!> Use `<lval> {tm} <- <rval>` to assign a value to an l-value.");
+            }
+            [_, "=", ..] => {
+                println!("!> Use `<lval> <- <rval>` to assign a value to an l-value.");
+            }
             [lval, "<-", "term" | "tm", rest @ ..] => {
                 use chumsky::Parser;
                 let term_text: String = rest.join(" ");
@@ -304,15 +310,20 @@ impl HumanPoweredVm {
     }
 
     fn print_help(&self) {
+        println!("{:-^80}", "COMMAND DOCUMENTATION");
         println!();
         println!("Commands:");
-        println!("  <rval>           - Print the value of <rval>.");
         println!("  <lval> <- <rval> - Assign the value of <rval> to <lval>.");
         println!("  <lval> <- tm <tm>");
         println!("                   - Assign the Prolog term <tm> to <lval>.");
         println!("  <rval>           - Print the value of <rval>.");
-        println!("  term <rval>      - Print the Prolog term residing in memory");
+        println!("  tm <rval>        - Print the Prolog term residing in memory");
         println!("                     at CellRef <rval>.");
+        println!("  alias <new> -> <old>");
+        println!("                   - Alias <old> as <new>.");
+        println!("  unalias <alias> -> <field>");
+        println!("                   - Unalias <alias> from <field>.");
+        println!("  del <field>      - Delete the field <field>.");
         println!("  push <rval>      - Push the value of <rval> onto the heap.");
         println!("  fields | f       - Print all the data fields of the VM.");
         println!("  list | l [from|next|prev|last|first <n>]");
@@ -320,12 +331,35 @@ impl HumanPoweredVm {
         println!("  docs | doc | d   - Print the documentation for the current");
         println!("                     instruction.");
         println!("  next | n         - Advance to the next instruction.");
-        println!("  alias <new> -> <old>");
-        println!("                   - Alias <old> as <new>.");
-        println!("  unalias <alias> -> <field>");
-        println!("                   - Unalias <alias> from <field>.");
-        println!("  q | quit         - Quit the program.");
-        println!("  h | help         - Print this help message.");
+        println!("  quit | q         - Quit the program, saving any field declarations.");
+        println!("  help | h | ?     - Print this help message.");
+        println!();
+        println!("  Expression Language:");
+        println!();
+        println!("  L-Values: values which represent a memory location which");
+        println!("              can be assigned to.");
+        println!("    <lval> ::= <field> | <tmp_var> | instr_ptr | <rval>.*");
+        println!("             | <rval>[<rval>]");
+        println!();
+        println!("  R-Values: expressions which can evaluate to a base value (<val>).");
+        println!("    <rval> ::= <usize> | <i32> | <sym> | <tmp_var> | <field>");
+        println!("             | <rval>.* | <rval>[<rval>] | <cell_ref> | <cell>");
+        println!();
+        println!("    <val>   ::= <usize> | <i32> | <sym> | <cell_ref> | <cell>");
+        println!("    <usize> ::= 0 | 1 | 2 | ...");
+        println!("    <i32>   ::= +0 | -0 | +1 | -1 | +2 | -2 | ...");
+        println!("    <cell>  ::= Int(<i32>) | Sym(<sym>) | Ref(<cell_ref>)");
+        println!("              | Rcd(<cell_ref>) | Sig(<functor>)");
+        println!("              | Lst(<cell_ref>) | Nil");
+        println!();
+        println!("    <functor>  ::= example1/0 | my_functor/3 | '*'/2 | ...");
+        println!("    <cell_ref> ::= @<usize>");
+        println!("    <field>    ::= example1 | ExAmPlE2 | ...");
+        println!("    <tmp_var>  ::= .example1 | .ExAmPlE2 | ...");
+        println!("    <sym> ::= :example1 | :ExAmPlE2 | :'example with spaces'");
+        println!("            | :'123' | ...");
+        println!();
+        println!("{:-<80}", "");
     }
 
     pub fn intern_sym(&self, text: &str) -> Sym {
