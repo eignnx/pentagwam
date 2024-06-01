@@ -46,7 +46,7 @@ impl Val {
             Val::Usize(_) => ValTy::Usize,
             Val::I32(_) => ValTy::I32,
             Val::Symbol(_) => ValTy::Symbol,
-            Val::Cell(_) => ValTy::AnyCellVal,
+            Val::Cell(_) => ValTy::Cell,
         }
     }
 

@@ -94,7 +94,7 @@ impl HumanPoweredVm {
             LVal::Deref(inner) => {
                 let inner = self.eval_to_val(inner)?;
                 let r = inner.try_as_cell_ref_like()?;
-                if rhs.ty() != ValTy::AnyCellVal {
+                if rhs.ty() != ValTy::Cell {
                     return Err(Error::AssignmentTypeError {
                         expected: "Cell".into(),
                         received: rhs.ty(),

@@ -34,8 +34,8 @@ impl Default for RVal {
 impl RVal {
     pub fn ty(&self) -> ValTy {
         match self {
-            RVal::Deref(_) => ValTy::AnyCellVal,
-            RVal::Index(..) => ValTy::AnyCellVal,
+            RVal::Deref(_) => ValTy::Cell,
+            RVal::Index(..) => ValTy::Cell,
             RVal::CellRef(_) => ValTy::CellRef,
             RVal::Usize(_) => ValTy::Usize,
             RVal::I32(_) => ValTy::I32,
@@ -43,7 +43,7 @@ impl RVal {
             RVal::Field(field) => ValTy::TypeOf(field.clone()),
             RVal::TmpVar(name) => ValTy::TypeOf(name.clone()),
             RVal::InstrPtr => ValTy::Usize,
-            RVal::Cell(_) => ValTy::AnyCellVal,
+            RVal::Cell(_) => ValTy::Cell,
         }
     }
 

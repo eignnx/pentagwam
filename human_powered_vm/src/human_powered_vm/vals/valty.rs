@@ -11,7 +11,7 @@ use std::{fmt, str::FromStr};
 #[derive(Debug, Clone, PartialEq, Eq, Serialize, Deserialize)]
 pub enum ValTy {
     CellRef,
-    AnyCellVal,
+    Cell,
     Usize,
     I32,
     Symbol,
@@ -23,7 +23,7 @@ impl ValTy {
     pub fn default_val(&self) -> val::Val {
         match self {
             ValTy::CellRef => val::Val::CellRef(CellRef::new(0)),
-            ValTy::AnyCellVal => val::Val::Cell(Cell::Nil),
+            ValTy::Cell => val::Val::Cell(Cell::Nil),
             ValTy::Usize => val::Val::Usize(0),
             ValTy::I32 => val::Val::I32(0),
             ValTy::Symbol => val::Val::Symbol("".to_string()),
@@ -40,7 +40,7 @@ impl fmt::Display for ValTy {
     fn fmt(&self, f: &mut fmt::Formatter) -> fmt::Result {
         match self {
             ValTy::CellRef => write!(f, "CellRef"),
-            ValTy::AnyCellVal => write!(f, "AnyCellVal"),
+            ValTy::Cell => write!(f, "Cell"),
             ValTy::Usize => write!(f, "Usize"),
             ValTy::I32 => write!(f, "I32"),
             ValTy::Symbol => write!(f, "Symbol"),
@@ -56,7 +56,7 @@ impl FromStr for ValTy {
     fn from_str(s: &str) -> Result<Self> {
         match s {
             "CellRef" => Ok(ValTy::CellRef),
-            "AnyCellVal" => Ok(ValTy::AnyCellVal),
+            "AnyCellVal" => Ok(ValTy::Cell),
             "Usize" => Ok(ValTy::Usize),
             "I32" => Ok(ValTy::I32),
             "Symbol" => Ok(ValTy::Symbol),
