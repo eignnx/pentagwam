@@ -76,9 +76,9 @@ impl CellVal {
 }
 
 impl DisplayViaMem for CellVal {
-    fn display_via_mem(&self, f: &mut fmt::Formatter<'_>, _mem: &Mem) -> fmt::Result {
+    fn display_via_mem(&self, f: &mut fmt::Formatter<'_>, mem: &Mem) -> fmt::Result {
         match self {
-            CellVal::Int(i) => write!(f, "{i:+}"),
+            CellVal::Int(i) => write!(f, "{}", mem.display(i)),
             CellVal::Sig { fname, arity } => {
                 if fname.contains(|c: char| !c.is_alphanumeric() && c != '_')
                     || !fname.starts_with(|c: char| c.is_alphabetic() || c == '_')
@@ -97,9 +97,9 @@ impl DisplayViaMem for CellVal {
                     write!(f, "Sym({sym})")
                 }
             }
-            CellVal::Ref(cell_ref) => write!(f, "Ref({cell_ref})"),
-            CellVal::Rcd(cell_ref) => write!(f, "Rcd({cell_ref})"),
-            CellVal::Lst(cell_ref) => write!(f, "Lst({cell_ref})"),
+            CellVal::Ref(cell_ref) => write!(f, "Ref({})", mem.display(cell_ref)),
+            CellVal::Rcd(cell_ref) => write!(f, "Rcd({})", mem.display(cell_ref)),
+            CellVal::Lst(cell_ref) => write!(f, "Lst({})", mem.display(cell_ref)),
             CellVal::Nil => write!(f, "Nil"),
         }
     }

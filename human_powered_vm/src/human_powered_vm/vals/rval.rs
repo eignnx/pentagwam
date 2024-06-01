@@ -30,22 +30,6 @@ impl Default for RVal {
     }
 }
 
-impl fmt::Display for RVal {
-    fn fmt(&self, f: &mut fmt::Formatter) -> fmt::Result {
-        match self {
-            RVal::Deref(inner) => write!(f, "{inner}.*"),
-            RVal::Index(base, offset) => write!(f, "{base}[{offset}]"),
-            RVal::CellRef(cell_ref) => write!(f, "{cell_ref}"),
-            RVal::Usize(u) => write!(f, "{u}"),
-            RVal::I32(i) => write!(f, "{i:+}"),
-            RVal::Field(field) => write!(f, "self.{field}"),
-            RVal::TmpVar(name) => write!(f, ".{name}"),
-            RVal::InstrPtr => write!(f, "self.instr_ptr"),
-            RVal::Cell(cell) => write!(f, "{cell:?}"),
-        }
-    }
-}
-
 impl RVal {
     pub fn ty(&self) -> ValTy {
         match self {
@@ -145,7 +129,7 @@ impl FromStr for RVal {
 impl DisplayViaMem for RVal {
     fn display_via_mem(&self, f: &mut fmt::Formatter<'_>, mem: &Mem) -> fmt::Result {
         match self {
-            RVal::Deref(inner) => write!(f, "*{}", mem.display(inner)),
+            RVal::Deref(inner) => write!(f, "{}.*", mem.display(inner)),
             RVal::Index(base, offset) => {
                 write!(f, "{}[{}]", mem.display(base), mem.display(offset))
             }

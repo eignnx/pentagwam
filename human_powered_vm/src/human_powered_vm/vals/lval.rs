@@ -13,18 +13,6 @@ pub enum LVal {
     Index(Box<RVal>, Box<RVal>),
 }
 
-impl fmt::Display for LVal {
-    fn fmt(&self, f: &mut fmt::Formatter) -> fmt::Result {
-        match self {
-            LVal::Field(field) => write!(f, "self.{field}"),
-            LVal::TmpVar(name) => write!(f, ".{name}"),
-            LVal::InstrPtr => write!(f, "self.instr_ptr"),
-            LVal::Deref(inner) => write!(f, "*{inner}"),
-            LVal::Index(base, offset) => write!(f, "{base}[{offset}]"),
-        }
-    }
-}
-
 impl LVal {
     pub fn parser() -> impl Parser<char, Self, Error = Simple<char>> {
         let p_field = text::ident().map(LVal::Field);
