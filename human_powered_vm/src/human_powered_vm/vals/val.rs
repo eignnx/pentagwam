@@ -17,6 +17,7 @@ pub enum Val {
     CellRef(CellRef),
     Usize(usize),
     I32(i32),
+    Symbol(String),
     Cell(Cell),
 }
 
@@ -32,6 +33,7 @@ impl fmt::Display for Val {
             Val::CellRef(cell_ref) => write!(f, "{cell_ref}"),
             Val::Usize(u) => write!(f, "{u}"),
             Val::I32(i) => write!(f, "{i:+}"),
+            Val::Symbol(s) => write!(f, ":{s}"),
             Val::Cell(cell) => write!(f, "{cell:?}"),
         }
     }
@@ -43,6 +45,7 @@ impl Val {
             Val::CellRef(_) => ValTy::CellRef,
             Val::Usize(_) => ValTy::Usize,
             Val::I32(_) => ValTy::I32,
+            Val::Symbol(_) => ValTy::Symbol,
             Val::Cell(_) => ValTy::AnyCellVal,
         }
     }
@@ -99,6 +102,16 @@ impl Val {
             }),
         }
     }
+
+    pub fn try_as_symbol(&self) -> Result<&str> {
+        match self {
+            Val::Symbol(s) => Ok(s),
+            other => Err(Error::TypeError {
+                expected: "Symbol".into(),
+                received: other.ty(),
+            }),
+        }
+    }
 }
 
 impl DisplayViaMem for Val {
@@ -107,6 +120,15 @@ impl DisplayViaMem for Val {
             Val::CellRef(cell_ref) => write!(f, "{cell_ref}"),
             Val::Usize(u) => write!(f, "{u}"),
             Val::I32(i) => write!(f, "{i:+}"),
+            Val::Symbol(s) => {
+                if s.contains(|c: char| !c.is_alphanumeric() && c != '_')
+                    || !s.starts_with(|c: char| c.is_alphabetic() || c == '_')
+                {
+                    write!(f, ":'{s}'")
+                } else {
+                    write!(f, ":{s}")
+                }
+            }
             Val::Cell(Cell::Int(i)) => write!(f, "Int({i:+})"),
             Val::Cell(Cell::Sig(Functor { sym, arity })) => {
                 let sym = sym.resolve(mem);

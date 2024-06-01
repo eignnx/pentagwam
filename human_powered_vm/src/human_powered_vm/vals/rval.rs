@@ -18,6 +18,7 @@ pub enum RVal {
     CellRef(CellRef),
     Usize(usize),
     I32(i32),
+    Symbol(String),
     Field(String),
     TmpVar(String),
     InstrPtr,
@@ -38,6 +39,7 @@ impl RVal {
             RVal::CellRef(_) => ValTy::CellRef,
             RVal::Usize(_) => ValTy::Usize,
             RVal::I32(_) => ValTy::I32,
+            RVal::Symbol(_) => ValTy::Symbol,
             RVal::Field(field) => ValTy::TypeOf(field.clone()),
             RVal::TmpVar(name) => ValTy::TypeOf(name.clone()),
             RVal::InstrPtr => ValTy::Usize,
@@ -72,6 +74,17 @@ impl RVal {
             })
             .map(RVal::I32);
 
+        let sym_lit = just(":")
+            .ignore_then(choice((
+                just('\'')
+                    .ignore_then(filter(|c| *c != '\'').repeated())
+                    .then_ignore(just('\''))
+                    .collect(),
+                text::ident::<_, Simple<char>>(),
+            )))
+            .map(String::from)
+            .map(RVal::Symbol);
+
         let tmp_var = just(".").ignore_then(text::ident()).map(RVal::TmpVar);
 
         let field = text::ident().map(RVal::Field);
@@ -82,6 +95,7 @@ impl RVal {
             cell_ref_lit,
             usize_lit,
             i32_lit,
+            sym_lit,
             tmp_var,
             field,
         ))
@@ -136,6 +150,15 @@ impl DisplayViaMem for RVal {
             RVal::CellRef(r) => write!(f, "{r}"),
             RVal::Usize(u) => write!(f, "{u}"),
             RVal::I32(i) => write!(f, "{i:+}"),
+            RVal::Symbol(s) => {
+                if s.contains(|c: char| !c.is_alphanumeric() && c != '_')
+                    || !s.starts_with(|c: char| c.is_alphabetic() || c == '_')
+                {
+                    write!(f, ":'{s}'")
+                } else {
+                    write!(f, ":{s}")
+                }
+            }
             RVal::Field(field) => write!(f, "self.{field}"),
             RVal::TmpVar(name) => write!(f, ".{name}"),
             RVal::InstrPtr => write!(f, "instr_ptr"),

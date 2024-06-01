@@ -26,7 +26,7 @@ impl ValTy {
             ValTy::AnyCellVal => val::Val::Cell(Cell::Nil),
             ValTy::Usize => val::Val::Usize(0),
             ValTy::I32 => val::Val::I32(0),
-            ValTy::Symbol => val::Val::Cell(Cell::Sym(Sym::new(0))),
+            ValTy::Symbol => val::Val::Symbol("".to_string()),
             ValTy::Functor => val::Val::Cell(Cell::Sig(Functor {
                 sym: Sym::new(0),
                 arity: 0,

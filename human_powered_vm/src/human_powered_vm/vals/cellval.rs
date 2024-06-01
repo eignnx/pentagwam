@@ -14,7 +14,7 @@ pub enum CellVal {
     Ref(RVal),
     Rcd(RVal),
     Int(RVal),
-    Sym(String),
+    Sym(RVal),
     Sig { fname: String, arity: u8 },
     Lst(RVal),
     Nil,
@@ -49,7 +49,7 @@ impl CellVal {
             .map(CellVal::Int);
 
         let p_sym = just("Sym")
-            .ignore_then(ident().delimited_by(just('('), just(')'))) // TODO: make symbol literal RVal
+            .ignore_then(rval.clone().delimited_by(just('('), just(')'))) // TODO: make symbol literal RVal
             .map(CellVal::Sym);
 
         let p_u8 = text::digits(10)
@@ -87,15 +87,7 @@ impl DisplayViaMem for CellVal {
                     write!(f, "Sig({fname}/{arity})")
                 }
             }
-            CellVal::Sym(sym) => {
-                if sym.contains(|c: char| !c.is_alphanumeric() && c != '_')
-                    || !sym.starts_with(|c: char| c.is_alphabetic() || c == '_')
-                {
-                    write!(f, "Sym('{sym}')")
-                } else {
-                    write!(f, "Sym({sym})")
-                }
-            }
+            CellVal::Sym(sym) => write!(f, "Sym({})", mem.display(sym)),
             CellVal::Ref(cell_ref) => write!(f, "Ref({})", mem.display(cell_ref)),
             CellVal::Rcd(cell_ref) => write!(f, "Rcd({})", mem.display(cell_ref)),
             CellVal::Lst(cell_ref) => write!(f, "Lst({})", mem.display(cell_ref)),

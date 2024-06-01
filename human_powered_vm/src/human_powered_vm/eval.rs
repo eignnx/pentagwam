@@ -30,6 +30,7 @@ impl HumanPoweredVm {
             }
             RVal::Usize(u) => Ok(Val::Usize(*u)),
             RVal::I32(i) => Ok(Val::I32(*i)),
+            RVal::Symbol(s) => Ok(Val::Symbol(s.clone())),
             RVal::Cell(c) => Ok(Val::Cell(self.eval_cellval_to_cell(c)?)),
             RVal::CellRef(r) => Ok(Val::CellRef(*r)),
             RVal::Field(field) => {
@@ -75,7 +76,11 @@ impl HumanPoweredVm {
             CellVal::Rcd(r) => Cell::Rcd(self.eval_to_val(r)?.try_as_cell_ref()?),
             CellVal::Lst(r) => Cell::Lst(self.eval_to_val(r)?.try_as_cell_ref()?),
             CellVal::Int(i) => Cell::Int(self.eval_to_val(i)?.try_as_i32()?),
-            CellVal::Sym(text) => Cell::Sym(self.mem.intern_sym(text)),
+            CellVal::Sym(s) => {
+                let val = self.eval_to_val(s)?;
+                let text = val.try_as_symbol()?;
+                Cell::Sym(self.intern_sym(text))
+            }
             CellVal::Sig { fname, arity } => Cell::Sig(self.mem.intern_functor(fname, *arity)),
             CellVal::Nil => Cell::Nil,
         })
