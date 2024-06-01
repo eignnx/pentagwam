@@ -49,8 +49,7 @@ impl CellVal {
             .map(CellVal::Int);
 
         let p_sym = just("Sym")
-            .ignore_then(ident()) // TODO: make symbol literal RVal
-            .delimited_by(just('('), just(')'))
+            .ignore_then(ident().delimited_by(just('('), just(')'))) // TODO: make symbol literal RVal
             .map(CellVal::Sym);
 
         let p_u8 = text::digits(10)
