@@ -232,7 +232,7 @@ impl HumanPoweredVm {
             ["push", rval] => {
                 let rval: RVal = rval.parse()?;
                 let val = self.eval_to_val(&rval)?;
-                let cell = val.expect_cell()?;
+                let cell = val.try_as_cell()?;
                 self.mem.push(cell);
                 println!("Pushed `{}` onto top of heap.", self.mem.display(&val));
             }
@@ -292,7 +292,7 @@ impl HumanPoweredVm {
                 // Display a Prolog term
                 let rval: RVal = rval.parse()?;
                 let val = self.eval_to_val(&rval)?;
-                let cell_ref = val.expect_cell_ref()?;
+                let cell_ref = val.try_as_cell_ref()?;
                 let disp = self.mem.display_term(cell_ref);
                 println!("=> {} == {disp}", self.mem.display(&rval));
             }

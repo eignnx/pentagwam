@@ -47,7 +47,7 @@ impl Val {
         }
     }
 
-    pub fn expect_cell_ref(&self) -> Result<CellRef> {
+    pub fn try_as_cell_ref(&self) -> Result<CellRef> {
         match self {
             Val::CellRef(cell_ref) => Ok(*cell_ref),
             other => Err(Error::TypeError {
@@ -57,7 +57,7 @@ impl Val {
         }
     }
 
-    pub fn expect_cell_ref_like(&self) -> Result<CellRef> {
+    pub fn try_as_cell_ref_like(&self) -> Result<CellRef> {
         match self {
             Val::CellRef(cell_ref)
             | Val::Cell(Cell::Ref(cell_ref))
@@ -70,7 +70,7 @@ impl Val {
         }
     }
 
-    pub fn expect_i32(&self) -> Result<i32> {
+    pub fn try_as_i32(&self) -> Result<i32> {
         match self {
             Val::I32(i) => Ok(*i),
             other => Err(Error::TypeError {
@@ -80,7 +80,7 @@ impl Val {
         }
     }
 
-    pub fn expect_usize(&self) -> Result<usize> {
+    pub fn try_as_usize(&self) -> Result<usize> {
         match self {
             Val::Usize(u) => Ok(*u),
             other => Err(Error::TypeError {
@@ -90,7 +90,7 @@ impl Val {
         }
     }
 
-    pub fn expect_cell(&self) -> Result<Cell> {
+    pub fn try_as_cell(&self) -> Result<Cell> {
         match self {
             Val::Cell(cell) => Ok(*cell),
             other => Err(Error::TypeError {

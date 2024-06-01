@@ -13,15 +13,15 @@ impl HumanPoweredVm {
         match rval {
             RVal::Deref(inner) => {
                 let val = self.eval_to_val(inner)?;
-                let cell_ref = val.expect_cell_ref_like()?;
+                let cell_ref = val.try_as_cell_ref_like()?;
                 self.mem
                     .try_cell_read(cell_ref)
                     .map(Val::Cell)
                     .ok_or(Error::OutOfBoundsMemRead(cell_ref))
             }
             RVal::Index(base, offset) => {
-                let base = self.eval_to_val(base)?.expect_cell_ref_like()?;
-                let offset = self.eval_to_val(offset)?.expect_usize()?;
+                let base = self.eval_to_val(base)?.try_as_cell_ref_like()?;
+                let offset = self.eval_to_val(offset)?.try_as_usize()?;
                 let addr = base + offset;
                 self.mem
                     .try_cell_read(addr)
@@ -71,10 +71,10 @@ impl HumanPoweredVm {
 
     pub(super) fn eval_cellval_to_cell(&self, cell: &CellVal) -> Result<Cell> {
         Ok(match cell {
-            CellVal::Ref(r) => Cell::Ref(self.eval_to_val(r)?.expect_cell_ref()?),
-            CellVal::Rcd(r) => Cell::Rcd(self.eval_to_val(r)?.expect_cell_ref()?),
-            CellVal::Lst(r) => Cell::Lst(self.eval_to_val(r)?.expect_cell_ref()?),
-            CellVal::Int(i) => Cell::Int(self.eval_to_val(i)?.expect_i32()?),
+            CellVal::Ref(r) => Cell::Ref(self.eval_to_val(r)?.try_as_cell_ref()?),
+            CellVal::Rcd(r) => Cell::Rcd(self.eval_to_val(r)?.try_as_cell_ref()?),
+            CellVal::Lst(r) => Cell::Lst(self.eval_to_val(r)?.try_as_cell_ref()?),
+            CellVal::Int(i) => Cell::Int(self.eval_to_val(i)?.try_as_i32()?),
             CellVal::Sym(text) => Cell::Sym(self.mem.intern_sym(text)),
             CellVal::Sig { fname, arity } => Cell::Sig(self.mem.intern_functor(fname, *arity)),
             CellVal::Nil => Cell::Nil,
@@ -84,45 +84,34 @@ impl HumanPoweredVm {
     pub(super) fn lval_set(&mut self, lval: &LVal, rval: &RVal) -> Result<Val> {
         let rhs = self.eval_to_val(rval)?;
         match &lval {
+            // @123.* <- <rval>
+            // Ref(@123).* <- <rval>
             LVal::Deref(inner) => {
                 let inner = self.eval_to_val(inner)?;
-                match inner {
-                    // *@123 <- <rval>
-                    // *Ref(@123) <- <rval>
-                    Val::CellRef(r) | Val::Cell(Cell::Ref(r) | Cell::Rcd(r) | Cell::Lst(r)) => {
-                        if rhs.ty() != ValTy::AnyCellVal {
-                            return Err(Error::AssignmentTypeError {
-                                expected: "Cell".into(),
-                                received: rhs.ty(),
-                            });
-                        }
-                        self.mem
-                            .try_cell_write(r, rhs.expect_cell()?)
-                            .ok_or(Error::OutOfBoundsMemWrite(r))?;
-                    }
-                    Val::Cell(Cell::Int(_) | Cell::Sym(_) | Cell::Sig(_) | Cell::Nil)
-                    | Val::I32(_)
-                    | Val::Usize(_) => {
-                        return Err(Error::AssignmentTypeError {
-                            expected: "CellRef, Ref, Rcd, or Lst".into(),
-                            received: inner.ty(),
-                        })
-                    }
+                let r = inner.try_as_cell_ref_like()?;
+                if rhs.ty() != ValTy::AnyCellVal {
+                    return Err(Error::AssignmentTypeError {
+                        expected: "Cell".into(),
+                        received: rhs.ty(),
+                    });
                 }
+                self.mem
+                    .try_cell_write(r, rhs.try_as_cell()?)
+                    .ok_or(Error::OutOfBoundsMemWrite(r))?;
             }
 
             // arr[123] <- <rval>
             LVal::Index(base, offset) => {
-                let base = self.eval_to_val(base)?.expect_cell_ref()?;
-                let offset = self.eval_to_val(offset)?.expect_usize()?;
+                let base = self.eval_to_val(base)?.try_as_cell_ref()?;
+                let offset = self.eval_to_val(offset)?.try_as_usize()?;
                 let addr = base + offset;
                 self.mem
-                    .try_cell_write(addr, rhs.expect_cell()?)
+                    .try_cell_write(addr, rhs.try_as_cell()?)
                     .ok_or(Error::OutOfBoundsMemWrite(addr))?;
             }
 
             // instr_ptr <- <rval>
-            LVal::InstrPtr => self.instr_ptr = rhs.expect_usize()?,
+            LVal::InstrPtr => self.instr_ptr = rhs.try_as_usize()?,
 
             // some_field <- <rval>
             // some_field_alias <- <rval>
