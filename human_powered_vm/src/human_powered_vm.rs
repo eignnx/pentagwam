@@ -303,13 +303,13 @@ impl HumanPoweredVm {
                     println!("!> Can't unalias `{alias}` from `{field}` because `{field}` doesn't exist.");
                 }
             }
-            ["term" | "tm", rval] => {
+            [tm @ ("term" | "tm"), rval] => {
                 // Display a Prolog term
                 let rval: RVal = rval.parse()?;
                 let val = self.eval_to_val(&rval)?;
                 let cell_ref = val.try_as_cell_ref()?;
                 let disp = self.mem.display_term(cell_ref);
-                println!("=> {} == {disp}", self.mem.display(&rval));
+                println!("=> {} == {tm} {disp}", self.mem.display(&rval));
             }
             rval => {
                 self.print_rval(&rval.join(" ").to_string())?;
