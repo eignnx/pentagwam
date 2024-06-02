@@ -89,7 +89,7 @@ impl HumanPoweredVm {
             }
             Err(e) if e.kind() == std::io::ErrorKind::NotFound => {
                 println!(
-                    "No FIELDS.txt save file found. On exit, one will be \
+                    "No SAVE.ron save file found. On exit, one will be \
                      created at: {SAVE_FILE}"
                 );
                 Ok(Default::default())
