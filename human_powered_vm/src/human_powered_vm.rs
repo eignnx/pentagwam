@@ -303,13 +303,13 @@ impl HumanPoweredVm {
                     println!("!> Can't unalias `{alias}` from `{field}` because `{field}` doesn't exist.");
                 }
             }
-            [tm @ ("term" | "tm"), rval] => {
+            [tm @ ("term" | "tm"), rest @ ..] => {
                 // Display a Prolog term
-                let rval: RVal = rval.parse()?;
-                let val = self.eval_to_val(&rval)?;
-                let cell_ref = val.try_as_cell_ref()?;
-                let disp = self.mem.display_term(cell_ref);
-                println!("=> {} == {tm} {disp}", self.mem.display(&rval));
+                use chumsky::Parser;
+                let term_text: String = rest.join(" ");
+                let term_parser = pentagwam::syntax::Term::parser();
+                let term = term_parser.parse::<_, &str>(term_text.as_str())?;
+                println!("=> {tm} {term}");
             }
             rval => {
                 self.print_rval(&rval.join(" ").to_string())?;

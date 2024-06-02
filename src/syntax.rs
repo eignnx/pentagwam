@@ -1,3 +1,4 @@
+use core::fmt;
 use std::collections::BTreeMap;
 
 use chumsky::prelude::*;
@@ -80,6 +81,44 @@ pub enum Term {
     Record(String, Vec<Term>),
     Cons(Box<Term>, Box<Term>),
     Nil,
+}
+
+impl fmt::Display for Term {
+    fn fmt(&self, f: &mut fmt::Formatter<'_>) -> fmt::Result {
+        match self {
+            Term::Int(n) => write!(f, "{}", n),
+            Term::Sym(s) => write!(f, "{}", s),
+            Term::Var(Some(s)) => write!(f, "{}", s),
+            Term::Var(None) => write!(f, "_"),
+            Term::Record(functor, args) => {
+                let arg_list = args
+                    .iter()
+                    .map(ToString::to_string)
+                    .collect::<Vec<_>>()
+                    .join(", ");
+                write!(f, "{functor}({arg_list})")
+            }
+            Term::Cons(car, cdr) => {
+                let mut cdr: &_ = cdr.as_ref();
+                write!(f, "[{}", car)?;
+                loop {
+                    match cdr {
+                        Term::Cons(new_car, new_cdr) => {
+                            write!(f, ", {}", new_car)?;
+                            cdr = new_cdr;
+                        }
+                        Term::Nil => break,
+                        other => {
+                            write!(f, " | {other}")?;
+                            break;
+                        }
+                    }
+                }
+                write!(f, "]")
+            }
+            Term::Nil => write!(f, "[]"),
+        }
+    }
 }
 
 impl Term {
