@@ -225,10 +225,6 @@ impl HumanPoweredVm {
                     }
                 }
             }
-            ["list" | "l", "heap", rest @ ..] => {
-                println!("Heap Listing:");
-                self.heap_listing(rest)?;
-            }
             ["list" | "l", rest @ ..] => {
                 println!("Program Listing:");
                 self.program_listing(rest, program)?;
