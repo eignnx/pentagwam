@@ -13,7 +13,7 @@ use crate::{
 };
 
 pub struct Mem {
-    pub(crate) heap: Vec<Cell>,
+    pub heap: Vec<Cell>,
     /// Interned symbols.
     pub(crate) symbols: RefCell<Vec<String>>,
     /// Maps variable names to their index in the heap.

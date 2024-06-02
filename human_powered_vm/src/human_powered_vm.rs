@@ -17,6 +17,7 @@ use crate::human_powered_vm::{
     vals::{lval::LVal, rval::RVal, val::Val, valty::ValTy},
 };
 
+pub mod builtin_fields;
 pub mod cmds;
 pub mod error;
 pub mod eval;
@@ -97,28 +98,6 @@ impl HumanPoweredVm {
             Err(e) => Err(e.into()),
         }
     }
-
-    pub fn instr_ptr(&self) -> usize {
-        self.fields
-            .get("instr_ptr")
-            .expect("builtin `instr_ptr` field not found")
-            .value
-            .try_as_usize()
-            .expect("builtin `instr_ptr` field is not a usize")
-    }
-
-    pub fn instr_ptr_mut(&mut self) -> &mut usize {
-        let Val::Usize(ref mut u) = self
-            .fields
-            .get_mut("instr_ptr")
-            .expect("builtin `instr_ptr` field not found")
-            .value
-        else {
-            panic!("builtin `instr_ptr` field is not a usize")
-        };
-        u
-    }
-
     fn populate_default_field_values(&mut self) {
         // We'd like for the Deserialize implementation to look at the `ValTy`
         // of the field and generate a default based on that, but I don't know
@@ -130,16 +109,7 @@ impl HumanPoweredVm {
                 .unwrap_or_else(|| data.ty.default_val());
         }
 
-        // Setup builtin fields, ones that are updated by the VM itself.
-        self.fields.insert(
-            "instr_ptr".to_owned(),
-            FieldData {
-                value: Val::Usize(0),
-                ty: ValTy::Usize,
-                default: Some(Val::Usize(0)),
-                aliases: ["ip", "P"].into_iter().map(ToOwned::to_owned).collect(),
-            },
-        );
+        self.setup_default_fields();
     }
 
     fn prompt(&self, prompt: &str) -> String {
@@ -153,6 +123,7 @@ impl HumanPoweredVm {
 
     pub fn run<L: Display, S: DisplayViaMem>(&mut self, program: &[Instr<L, S>]) -> Result<()> {
         loop {
+            self.update_builtin_fields();
             println!();
             if let Some(instr) = program.get(self.instr_ptr()) {
                 println!(
@@ -253,6 +224,10 @@ impl HumanPoweredVm {
                         println!(";");
                     }
                 }
+            }
+            ["list" | "l", "heap", rest @ ..] => {
+                println!("Heap Listing:");
+                self.heap_listing(rest)?;
             }
             ["list" | "l", rest @ ..] => {
                 println!("Program Listing:");

@@ -20,6 +20,11 @@ HumanPoweredVm(
             default: None,
             aliases: ["A4"],
         ),
+        "heap_ptr": FieldData(
+            ty: CellRef,
+            default: None,
+            aliases: ["H", "hp"],
+        ),
         "instr_ptr": FieldData(
             ty: Usize,
             default: Some(Usize(0)),

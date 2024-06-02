@@ -1,6 +1,11 @@
+use core::fmt;
+
 use serde::{Deserialize, Serialize};
 
-use crate::defs::{CellRef, Sym};
+use crate::{
+    defs::{CellRef, Sym},
+    mem::{DisplayViaMem, Mem},
+};
 
 #[derive(Debug, Clone, Copy, PartialEq, Eq, PartialOrd, Ord, Hash, Serialize, Deserialize)]
 pub enum Cell {
@@ -44,6 +49,20 @@ impl std::fmt::Display for Cell {
             Cell::Sym(s) => write!(f, "Sym({s})"),
             Cell::Sig(s) => write!(f, "Sig({s})"),
             Cell::Lst(r) => write!(f, "Lst({r})"),
+            Cell::Nil => write!(f, "Nil"),
+        }
+    }
+}
+
+impl DisplayViaMem for Cell {
+    fn display_via_mem(&self, f: &mut fmt::Formatter<'_>, mem: &Mem) -> fmt::Result {
+        match self {
+            Cell::Ref(r) => write!(f, "Ref({})", r),
+            Cell::Rcd(r) => write!(f, "Rcd({})", r),
+            Cell::Int(i) => write!(f, "Int({})", i),
+            Cell::Sym(s) => write!(f, "Sym({})", mem.display(s)),
+            Cell::Sig(s) => write!(f, "Sig({})", mem.display(s)),
+            Cell::Lst(r) => write!(f, "Lst({})", r),
             Cell::Nil => write!(f, "Nil"),
         }
     }
