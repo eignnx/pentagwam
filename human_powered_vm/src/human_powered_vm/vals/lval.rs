@@ -8,7 +8,6 @@ use std::{fmt, str::FromStr};
 pub enum LVal {
     Field(String),
     TmpVar(String),
-    InstrPtr,
     Deref(Box<RVal>),
     Index(Box<RVal>, Box<RVal>),
 }
@@ -18,8 +17,6 @@ impl LVal {
         let p_field = text::ident().map(LVal::Field);
 
         let p_tmp_var = just('.').ignore_then(text::ident()).map(LVal::TmpVar);
-
-        let p_instr_ptr = just("instr_ptr").or(just("ip")).map(|_| LVal::InstrPtr);
 
         let p_index_or_deref = RVal::atomic_rval_parser(RVal::parser())
             .map(Box::new)
@@ -33,7 +30,7 @@ impl LVal {
                 ))
             });
 
-        choice((p_field, p_tmp_var, p_instr_ptr, p_index_or_deref))
+        choice((p_field, p_tmp_var, p_index_or_deref))
     }
 }
 
@@ -50,7 +47,6 @@ impl DisplayViaMem for LVal {
         match self {
             LVal::Field(field) => write!(f, "self.{field}"),
             LVal::TmpVar(name) => write!(f, ".{name}"),
-            LVal::InstrPtr => write!(f, "InstrPtr"),
             LVal::Deref(rval) => write!(f, "{}.*", mem.display(rval)),
             LVal::Index(base, offset) => {
                 write!(f, "{}[{}]", mem.display(base), mem.display(offset))

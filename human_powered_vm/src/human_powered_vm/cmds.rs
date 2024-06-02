@@ -33,7 +33,7 @@ impl HumanPoweredVm {
             }
             ["next", n] => {
                 let n = n.parse()?;
-                for (i, instr) in program.iter().enumerate().skip(self.instr_ptr).take(n) {
+                for (i, instr) in program.iter().enumerate().skip(self.instr_ptr()).take(n) {
                     println!("{:04}: {}", i, self.mem.display(instr));
                 }
             }
@@ -46,7 +46,7 @@ impl HumanPoweredVm {
             }
             ["prev" | "previous", n] => {
                 let n = n.parse()?;
-                let skip = self.instr_ptr.saturating_sub(n);
+                let skip = self.instr_ptr().saturating_sub(n);
                 for (i, instr) in program.iter().enumerate().skip(skip).take(n) {
                     println!("{:04}: {}", i, self.mem.display(instr));
                 }

@@ -22,7 +22,6 @@ pub enum RVal {
     Symbol(String),
     Field(String),
     TmpVar(String),
-    InstrPtr,
     Cell(Box<CellVal>),
 }
 
@@ -44,7 +43,6 @@ impl RVal {
             RVal::Symbol(_) => ValTy::Symbol,
             RVal::Field(field) => ValTy::TypeOf(field.clone()),
             RVal::TmpVar(name) => ValTy::TypeOf(name.clone()),
-            RVal::InstrPtr => ValTy::Usize,
             RVal::Cell(_) => ValTy::Cell,
         }
     }
@@ -52,8 +50,6 @@ impl RVal {
     pub fn atomic_rval_parser<'a>(
         rval: impl Parser<char, RVal, Error = Simple<char>> + 'a + Clone,
     ) -> impl Parser<char, Self, Error = Simple<char>> + 'a {
-        let instr_ptr = just("instr_ptr").or(just("ip")).map(|_| RVal::InstrPtr);
-
         let cell_lit = CellVal::parser(rval).map(Box::new).map(RVal::Cell);
 
         let cell_ref_lit = just("@")
@@ -92,7 +88,6 @@ impl RVal {
         let field = text::ident().map(RVal::Field);
 
         choice((
-            instr_ptr,
             cell_lit,
             cell_ref_lit,
             usize_lit,
@@ -162,7 +157,6 @@ impl DisplayViaMem for RVal {
             }
             RVal::Field(field) => write!(f, "self.{field}"),
             RVal::TmpVar(name) => write!(f, ".{name}"),
-            RVal::InstrPtr => write!(f, "instr_ptr"),
             RVal::Cell(cell) => write!(f, "{}", mem.display(cell)),
         }
     }

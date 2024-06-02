@@ -28,7 +28,6 @@ pub struct HumanPoweredVm {
     fields: BTreeMap<String, FieldData>,
     #[serde(skip)]
     tmp_vars: BTreeMap<String, FieldData>,
-    instr_ptr: usize,
     #[serde(skip)]
     mem: Mem,
 }
@@ -38,6 +37,7 @@ pub struct FieldData {
     #[serde(skip)]
     value: Val,
     ty: ValTy,
+    default: Option<Val>,
     aliases: BTreeSet<String>,
 }
 
@@ -98,13 +98,48 @@ impl HumanPoweredVm {
         }
     }
 
+    pub fn instr_ptr(&self) -> usize {
+        self.fields
+            .get("instr_ptr")
+            .expect("builtin `instr_ptr` field not found")
+            .value
+            .try_as_usize()
+            .expect("builtin `instr_ptr` field is not a usize")
+    }
+
+    pub fn instr_ptr_mut(&mut self) -> &mut usize {
+        let Val::Usize(ref mut u) = self
+            .fields
+            .get_mut("instr_ptr")
+            .expect("builtin `instr_ptr` field not found")
+            .value
+        else {
+            panic!("builtin `instr_ptr` field is not a usize")
+        };
+        u
+    }
+
     fn populate_default_field_values(&mut self) {
         // We'd like for the Deserialize implementation to look at the `ValTy`
         // of the field and generate a default based on that, but I don't know
         // how to do that. So we'll just post-process a bit.
         for (_field, data) in self.fields.iter_mut() {
-            data.value = data.ty.default_val();
+            data.value = data
+                .default
+                .clone()
+                .unwrap_or_else(|| data.ty.default_val());
         }
+
+        // Setup builtin fields, ones that are updated by the VM itself.
+        self.fields.insert(
+            "instr_ptr".to_owned(),
+            FieldData {
+                value: Val::Usize(0),
+                ty: ValTy::Usize,
+                default: Some(Val::Usize(0)),
+                aliases: ["ip", "P"].into_iter().map(ToOwned::to_owned).collect(),
+            },
+        );
     }
 
     fn prompt(&self, prompt: &str) -> String {
@@ -119,8 +154,12 @@ impl HumanPoweredVm {
     pub fn run<L: Display, S: DisplayViaMem>(&mut self, program: &[Instr<L, S>]) -> Result<()> {
         loop {
             println!();
-            if let Some(instr) = program.get(self.instr_ptr) {
-                println!("instr #{:04}: {}", self.instr_ptr, self.mem.display(instr));
+            if let Some(instr) = program.get(self.instr_ptr()) {
+                println!(
+                    "instr #{:04}: {}",
+                    self.instr_ptr(),
+                    self.mem.display(instr)
+                );
                 println!();
             } else {
                 println!("[Instruction pointer beyond end of program]");
@@ -152,7 +191,7 @@ impl HumanPoweredVm {
             ["help" | "h" | "?" | "--help"] => self.print_help(),
             ["docs" | "doc" | "d"] => {
                 // Print out the doc-comment associated with the current instruction.
-                if let Some(instr) = program.get(self.instr_ptr) {
+                if let Some(instr) = program.get(self.instr_ptr()) {
                     if let Some(docs) = instr.doc_comment() {
                         println!("{:-^80}", "INSTRUCTION DOCUMENTATION");
                         println!();
@@ -220,7 +259,7 @@ impl HumanPoweredVm {
                 self.program_listing(rest, program)?;
             }
             ["next" | "n"] => {
-                self.instr_ptr += 1;
+                *self.instr_ptr_mut() += 1;
                 println!("Advanced to next instruction.");
             }
             ["del", field_name] => {
@@ -347,8 +386,7 @@ impl HumanPoweredVm {
         println!();
         println!("  L-Values: values which represent a memory location which");
         println!("              can be assigned to.");
-        println!("    <lval> ::= <field> | <tmp_var> | instr_ptr | <rval>.*");
-        println!("             | <rval>[<rval>]");
+        println!("    <lval> ::= <field> | <tmp_var> | <rval>.* | <rval>[<rval>]");
         println!();
         println!("  R-Values: expressions which can evaluate to a base value (<val>).");
         println!("    <rval> ::= <usize> | <i32> | <sym> | <tmp_var> | <field>");

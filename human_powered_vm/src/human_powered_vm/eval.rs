@@ -67,7 +67,6 @@ impl HumanPoweredVm {
                         .ok_or_else(|| Error::UndefinedTmpVar(name.to_string()))
                 }
             }
-            RVal::InstrPtr => Ok(Val::Usize(self.instr_ptr)),
         }
     }
 
@@ -97,7 +96,7 @@ impl HumanPoweredVm {
                     value: self.mem.display(inner).to_string(),
                 })
             }
-            RVal::InstrPtr | RVal::Field(_) | RVal::TmpVar(_) => Err(Error::BadAddressOfArgument {
+            RVal::Field(_) | RVal::TmpVar(_) => Err(Error::BadAddressOfArgument {
                 reason: "Can't take the address of a field or temp var \
                                  because those won't exist at runtime (they're \
                                  just for the human-powered VM).",
@@ -151,9 +150,6 @@ impl HumanPoweredVm {
                     .ok_or(Error::OutOfBoundsMemWrite(addr))?;
             }
 
-            // instr_ptr <- <rval>
-            LVal::InstrPtr => self.instr_ptr = rhs.try_as_usize()?,
-
             // some_field <- <rval>
             // some_field_alias <- <rval>
             LVal::Field(field) => {
@@ -177,6 +173,7 @@ impl HumanPoweredVm {
                         FieldData {
                             value: rhs.clone(),
                             ty: rhs.ty(),
+                            default: None,
                             aliases: Default::default(),
                         },
                     );
@@ -211,6 +208,7 @@ impl HumanPoweredVm {
                         FieldData {
                             value: rhs.clone(),
                             ty: rhs.ty(),
+                            default: None,
                             aliases: Default::default(),
                         },
                     );

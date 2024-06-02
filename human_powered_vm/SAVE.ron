@@ -2,28 +2,38 @@ HumanPoweredVm(
     fields: {
         "X1": FieldData(
             ty: CellRef,
+            default: None,
             aliases: ["A1"],
         ),
         "X2": FieldData(
             ty: CellRef,
+            default: None,
             aliases: ["A2"],
         ),
         "X3": FieldData(
             ty: CellRef,
+            default: None,
             aliases: ["A3"],
         ),
         "X4": FieldData(
             ty: CellRef,
+            default: None,
             aliases: ["A4"],
+        ),
+        "instr_ptr": FieldData(
+            ty: Usize,
+            default: Some(Usize(0)),
+            aliases: ["P", "ip"],
         ),
         "mode": FieldData(
             ty: Symbol,
+            default: Some(Symbol("read")),
             aliases: [],
         ),
         "structure_ptr": FieldData(
             ty: CellRef,
+            default: None,
             aliases: ["S"],
         ),
     },
-    instr_ptr: 1,
 )
