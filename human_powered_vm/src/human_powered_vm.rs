@@ -300,7 +300,7 @@ impl HumanPoweredVm {
                         println!("!> Can't unalias `{alias}` from `{field}` because `{alias}` isn't an alias of `{field}`.");
                     }
                 } else {
-                    println!("!> Can't unalias `{alias}` from `{field}` because `{field}` doesn't exist.");
+                    println!("!> Can't unalias `{alias}` from `{field}` because field `{field}` doesn't exist.");
                 }
             }
             [tm @ ("term" | "tm"), rest @ ..] => {
