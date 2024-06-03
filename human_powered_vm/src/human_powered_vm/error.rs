@@ -37,6 +37,11 @@ pub enum Error {
         value: String,
     },
     UnsliceableValue(String),
+    BadSliceBounds {
+        old_len: usize,
+        new_start: usize,
+        new_len: usize,
+    },
 }
 
 impl fmt::Display for Error {
@@ -82,8 +87,17 @@ impl fmt::Display for Error {
             Error::UnsliceableValue(val) => {
                 writeln!(f, "Can't slice value `{val}`. Only values which \
                              evaluate to a CellRef or a Usize (corresponding to \
-                             the heap and code segments, respectively) can be sliced.")
+                             the heap and code segments, respectively) or to a \
+                             Slice can be sliced.")
 
+            }
+            Error::BadSliceBounds { old_len, new_start, new_len } => {
+                writeln!(f, "Bad slice: `<…>[{new_start}..{new_len}]` produces \
+                             a slice of length `{new_len}`, but the original \
+                             slice was of length `{old_len}`, and you asked \
+                             for the subslice to begin at index `{new_start}`. \
+                             That leaves only `{}` elements from the original \
+                             slice available to subslice.", old_len - new_start)
             }
         }
     }

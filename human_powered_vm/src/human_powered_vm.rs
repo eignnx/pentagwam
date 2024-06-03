@@ -370,18 +370,18 @@ impl HumanPoweredVm {
         println!("             | <cell_ref> | <cell>");
         println!();
         println!("    <val>   ::= <usize> | <i32> | <sym> | <cell_ref> | <cell>");
-        println!("    <usize> ::= 0 | 1 | 2 | ...");
-        println!("    <i32>   ::= +0 | -0 | +1 | -1 | +2 | -2 | ...");
+        println!("    <usize> ::= 0 | 1 | 2 | …");
+        println!("    <i32>   ::= +0 | -0 | +1 | -1 | +2 | -2 | …");
         println!("    <cell>  ::= Int(<i32>) | Sym(<sym>) | Ref(<cell_ref>)");
         println!("              | Rcd(<cell_ref>) | Sig(<functor>)");
         println!("              | Lst(<cell_ref>) | Nil");
         println!();
-        println!("    <functor>  ::= example1/0 | my_functor/3 | '*'/2 | ...");
+        println!("    <functor>  ::= example1/0 | my_functor/3 | '*'/2 | …");
         println!("    <cell_ref> ::= @<usize>");
-        println!("    <field>    ::= example1 | ExAmPlE2 | ...");
-        println!("    <tmp_var>  ::= .example1 | .ExAmPlE2 | ...");
+        println!("    <field>    ::= example1 | ExAmPlE2 | …");
+        println!("    <tmp_var>  ::= .example1 | .ExAmPlE2 | …");
         println!("    <sym> ::= :example1 | :ExAmPlE2 | :'example with spaces'");
-        println!("            | :'123' | ...");
+        println!("            | :'123' | …");
         println!();
         println!("{:-<80}", "");
     }

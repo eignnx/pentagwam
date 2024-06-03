@@ -49,6 +49,27 @@ impl HumanPoweredVm {
                         start: Some(base + start.unwrap_or(0)),
                         len,
                     }),
+                    Val::Slice {
+                        region,
+                        start: old_start,
+                        len: old_len,
+                    } => {
+                        let len = match (old_len, len) {
+                            (None, None) => None,
+                            (None, Some(new)) => Some(new),
+                            (Some(old), None) => Some(old),
+                            (Some(old), Some(new)) if new <= old - start.unwrap_or(0) => Some(new),
+                            (Some(old_len), Some(new_len)) => {
+                                return Err(Error::BadSliceBounds {
+                                    old_len,
+                                    new_start: start.unwrap_or(0),
+                                    new_len,
+                                })
+                            }
+                        };
+                        let start = old_start.zip(start).map(|(old, new)| old + new);
+                        Ok(Val::Slice { region, start, len })
+                    }
                     other => Err(Error::UnsliceableValue(
                         self.mem.display(&other).to_string(),
                     )),
