@@ -4,7 +4,13 @@ use crate::human_powered_vm::FieldData;
 
 use super::{
     error::{Error, Result},
-    vals::{cellval::CellVal, lval::LVal, rval::RVal, val::Val, valty::ValTy},
+    vals::{
+        cellval::CellVal,
+        lval::LVal,
+        rval::RVal,
+        val::{Region, Val},
+        valty::ValTy,
+    },
     HumanPoweredVm,
 };
 
@@ -28,6 +34,25 @@ impl HumanPoweredVm {
                     .try_cell_read(addr)
                     .map(Val::Cell)
                     .ok_or(Error::OutOfBoundsMemRead(addr))
+            }
+            RVal::IndexSlice(base, start, len) => {
+                let start = self.try_eval_as_usize_bound(start)?;
+                let len = self.try_eval_as_usize_bound(len)?;
+                match self.eval_to_val(base)? {
+                    Val::CellRef(base) => Ok(Val::Slice {
+                        region: Region::Mem,
+                        start: Some(base.usize() + start.unwrap_or(0)),
+                        len,
+                    }),
+                    Val::Usize(base) => Ok(Val::Slice {
+                        region: Region::Code,
+                        start: Some(base + start.unwrap_or(0)),
+                        len,
+                    }),
+                    other => Err(Error::UnsliceableValue(
+                        self.mem.display(&other).to_string(),
+                    )),
+                }
             }
             RVal::Usize(u) => Ok(Val::Usize(*u)),
             RVal::I32(i) => Ok(Val::I32(*i)),
@@ -72,14 +97,24 @@ impl HumanPoweredVm {
 
     fn eval_address_of_to_val(&self, inner: &RVal) -> Result<Val> {
         match inner {
+            RVal::Deref(inner) => Ok(Val::CellRef(
+                self.eval_to_val(inner.as_ref())?.try_as_cell_ref()?,
+            )),
             RVal::Index(base, offset) => {
                 let base = self.eval_to_val(base)?.try_as_cell_ref_like()?;
                 let offset = self.eval_to_val(offset)?.try_as_usize()?;
                 Ok(Val::CellRef(base + offset))
             }
-            RVal::Deref(inner) => Ok(Val::CellRef(
-                self.eval_to_val(inner.as_ref())?.try_as_cell_ref()?,
-            )),
+            RVal::IndexSlice(base, start, _len) => {
+                let start = self.try_eval_as_usize_bound(start)?;
+                match self.eval_to_val(base)? {
+                    Val::CellRef(base) => Ok(Val::CellRef(base + start.unwrap_or(0))),
+                    Val::Usize(base) => Ok(Val::Usize(base + start.unwrap_or(0))),
+                    other => Err(Error::UnsliceableValue(
+                        self.mem.display(&other).to_string(),
+                    )),
+                }
+            }
             RVal::AddressOf(_) => Err(Error::BadAddressOfArgument {
                 reason: "Can't take the address of an address-of expression.",
                 value: self.mem.display(inner).to_string(),
@@ -222,5 +257,13 @@ impl HumanPoweredVm {
         }
 
         Ok(rhs)
+    }
+
+    fn try_eval_as_usize_bound(&self, rval_opt: &Option<Box<RVal>>) -> Result<Option<usize>> {
+        let Some(rval) = rval_opt.as_ref() else {
+            return Ok(None);
+        };
+        let val = self.eval_to_val(rval)?;
+        Ok(Some(val.try_as_usize()?))
     }
 }

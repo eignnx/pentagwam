@@ -19,7 +19,7 @@ impl HumanPoweredVm {
         for cmd in scenario.setup {
             println!();
             println!("=> {cmd}");
-            match self.handle_cmd(&cmd, &scenario.program[..]) {
+            match self.handle_cmd(&cmd) {
                 Ok(_) => {}
                 Err(e) => {
                     println!("Error while running scenario setup command `{cmd}`:");
@@ -31,6 +31,7 @@ impl HumanPoweredVm {
         println!();
         println!("BEGIN SESSION:");
 
-        self.run(&scenario.program[..])
+        self.load_program(scenario.program)
+            .run::<Functor<String>, String>()
     }
 }

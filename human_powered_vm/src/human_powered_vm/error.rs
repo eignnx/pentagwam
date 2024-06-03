@@ -36,6 +36,7 @@ pub enum Error {
         reason: &'static str,
         value: String,
     },
+    UnsliceableValue(String),
 }
 
 impl fmt::Display for Error {
@@ -77,6 +78,12 @@ impl fmt::Display for Error {
             }
             Error::BadAddressOfArgument { reason, value } => {
                 writeln!(f, "Bad address-of argument `{value}`: {reason}")
+            }
+            Error::UnsliceableValue(val) => {
+                writeln!(f, "Can't slice value `{val}`. Only values which \
+                             evaluate to a CellRef or a Usize (corresponding to \
+                             the heap and code segments, respectively) can be sliced.")
+
             }
         }
     }

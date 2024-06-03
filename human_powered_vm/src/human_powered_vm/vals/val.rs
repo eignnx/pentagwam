@@ -19,6 +19,26 @@ pub enum Val {
     I32(i32),
     Symbol(String),
     Cell(Cell),
+    Slice {
+        region: Region,
+        start: Option<usize>,
+        len: Option<usize>,
+    },
+}
+
+#[derive(Debug, From, Clone, Serialize, Deserialize)]
+pub enum Region {
+    Mem,
+    Code,
+}
+
+impl fmt::Display for Region {
+    fn fmt(&self, f: &mut fmt::Formatter) -> fmt::Result {
+        match self {
+            Region::Mem => write!(f, "<heap-segment>"),
+            Region::Code => write!(f, "<code-segment>"),
+        }
+    }
 }
 
 impl Default for Val {
@@ -35,6 +55,11 @@ impl fmt::Display for Val {
             Val::I32(i) => write!(f, "{i:+}"),
             Val::Symbol(s) => write!(f, ":{s}"),
             Val::Cell(cell) => write!(f, "{cell:?}"),
+            Val::Slice { region, start, len } => {
+                let start = start.map_or_else(String::new, |i| i.to_string());
+                let len = len.map_or_else(String::new, |i| i.to_string());
+                write!(f, "{region}[{start}..{len}]")
+            }
         }
     }
 }
@@ -42,11 +67,12 @@ impl fmt::Display for Val {
 impl Val {
     pub fn ty(&self) -> ValTy {
         match self {
-            Val::CellRef(_) => ValTy::CellRef,
-            Val::Usize(_) => ValTy::Usize,
-            Val::I32(_) => ValTy::I32,
-            Val::Symbol(_) => ValTy::Symbol,
-            Val::Cell(_) => ValTy::Cell,
+            Val::CellRef(..) => ValTy::CellRef,
+            Val::Usize(..) => ValTy::Usize,
+            Val::I32(..) => ValTy::I32,
+            Val::Symbol(..) => ValTy::Symbol,
+            Val::Cell(..) => ValTy::Cell,
+            Val::Slice { .. } => ValTy::Slice,
         }
     }
 
@@ -157,6 +183,11 @@ impl DisplayViaMem for Val {
             Val::Cell(Cell::Rcd(cell_ref)) => write!(f, "Rcd({cell_ref})"),
             Val::Cell(Cell::Lst(cell_ref)) => write!(f, "Lst({cell_ref})"),
             Val::Cell(Cell::Nil) => write!(f, "Nil"),
+            Val::Slice { region, start, len } => {
+                let start = start.map_or_else(String::new, |i| i.to_string());
+                let len = len.map_or_else(String::new, |i| i.to_string());
+                write!(f, "{region}[{start}..{len}]")
+            }
         }
     }
 }

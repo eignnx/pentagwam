@@ -1,6 +1,7 @@
 use derive_more::From;
 use pentagwam::{
     bc::instr::Instr,
+    cell::Functor,
     defs::{CellRef, Sym},
     mem::{DisplayViaMem, Mem},
 };
@@ -31,6 +32,8 @@ pub struct HumanPoweredVm {
     tmp_vars: BTreeMap<String, FieldData>,
     #[serde(skip)]
     mem: Mem,
+    #[serde(skip)]
+    program: Vec<Instr<Functor<String>, String>>,
 }
 
 #[derive(Debug, Serialize, Deserialize)]
@@ -98,6 +101,7 @@ impl HumanPoweredVm {
             Err(e) => Err(e.into()),
         }
     }
+
     fn populate_default_field_values(&mut self) {
         // We'd like for the Deserialize implementation to look at the `ValTy`
         // of the field and generate a default based on that, but I don't know
@@ -112,6 +116,11 @@ impl HumanPoweredVm {
         self.setup_default_fields();
     }
 
+    pub fn load_program(&mut self, program: Vec<Instr<Functor<String>, String>>) -> &mut Self {
+        self.program = program;
+        self
+    }
+
     fn prompt(&self, prompt: &str) -> String {
         print!("({prompt})=> ");
         std::io::stdout().flush().unwrap();
@@ -121,11 +130,11 @@ impl HumanPoweredVm {
         input.trim().to_string()
     }
 
-    pub fn run<L: Display, S: DisplayViaMem>(&mut self, program: &[Instr<L, S>]) -> Result<()> {
+    pub fn run<L: Display, S: DisplayViaMem>(&mut self) -> Result<()> {
         loop {
             self.update_builtin_fields();
             println!();
-            if let Some(instr) = program.get(self.instr_ptr()) {
+            if let Some(instr) = self.program.get(self.instr_ptr()) {
                 println!(
                     "instr #{:04}: {}",
                     self.instr_ptr(),
@@ -138,7 +147,7 @@ impl HumanPoweredVm {
             }
 
             let cmd = self.prompt("Enter a command");
-            match self.handle_cmd(&cmd, program) {
+            match self.handle_cmd(&cmd) {
                 Ok(ControlFlow::Break(())) => break,
                 Ok(ControlFlow::Continue(())) => continue,
                 Err(e) => println!("!> {e}"),
@@ -147,11 +156,7 @@ impl HumanPoweredVm {
         Ok(())
     }
 
-    fn handle_cmd<L: std::fmt::Display, S: DisplayViaMem>(
-        &mut self,
-        cmd: &str,
-        program: &[Instr<L, S>],
-    ) -> Result<ControlFlow<()>> {
+    fn handle_cmd(&mut self, cmd: &str) -> Result<ControlFlow<()>> {
         let cmd_split = cmd.split_whitespace().collect::<Vec<_>>();
         match &cmd_split[..] {
             [] => {
@@ -162,7 +167,7 @@ impl HumanPoweredVm {
             ["help" | "h" | "?" | "--help"] => self.print_help(),
             ["docs" | "doc" | "d"] => {
                 // Print out the doc-comment associated with the current instruction.
-                if let Some(instr) = program.get(self.instr_ptr()) {
+                if let Some(instr) = self.program.get(self.instr_ptr()) {
                     if let Some(docs) = instr.doc_comment() {
                         println!("{:-^80}", "INSTRUCTION DOCUMENTATION");
                         println!();
@@ -227,7 +232,7 @@ impl HumanPoweredVm {
             }
             ["list" | "l", rest @ ..] => {
                 println!("Program Listing:");
-                self.program_listing(rest, program)?;
+                self.program_listing(rest)?;
             }
             ["next" | "n"] => {
                 *self.instr_ptr_mut() += 1;

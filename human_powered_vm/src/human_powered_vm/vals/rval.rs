@@ -15,6 +15,7 @@ pub enum RVal {
     AddressOf(Box<RVal>),
     Deref(Box<RVal>),
     Index(Box<RVal>, Box<RVal>),
+    IndexSlice(Box<RVal>, Option<Box<RVal>>, Option<Box<RVal>>),
     #[from]
     CellRef(CellRef),
     Usize(usize),
@@ -37,6 +38,7 @@ impl RVal {
             RVal::AddressOf(_) => ValTy::CellRef,
             RVal::Deref(_) => ValTy::Cell,
             RVal::Index(..) => ValTy::Cell,
+            RVal::IndexSlice(..) => ValTy::Slice,
             RVal::CellRef(_) => ValTy::CellRef,
             RVal::Usize(_) => ValTy::Usize,
             RVal::I32(_) => ValTy::I32,
@@ -102,24 +104,36 @@ impl RVal {
         recursive::<_, _, _, _, Simple<char>>(|rval| {
             enum PostfixOp {
                 Index(RVal),
+                IndexSlice(Option<RVal>, Option<RVal>),
                 Deref,
                 AddressOf,
             }
 
+            let index_slice_p = rval
+                .clone()
+                .or_not()
+                .then_ignore(just(".."))
+                .then(rval.clone().or_not())
+                .map(|(start, len)| PostfixOp::IndexSlice(start, len));
+            let index_p = rval.clone().map(PostfixOp::Index);
+            let deref_p = just(".*").map(|_| PostfixOp::Deref);
+            let addr_of_p = just(".&").map(|_| PostfixOp::AddressOf);
+
             Self::atomic_rval_parser(rval.clone())
                 .then(
                     choice((
-                        rval.clone()
-                            .delimited_by(just("["), just("]"))
-                            .map(PostfixOp::Index),
-                        just(".*").map(|_| PostfixOp::Deref),
-                        just(".&").map(|_| PostfixOp::AddressOf),
+                        choice((index_slice_p, index_p)).delimited_by(just("["), just("]")),
+                        deref_p,
+                        addr_of_p,
                     ))
                     .repeated(),
                 )
                 .foldl(|a, b| match b {
-                    PostfixOp::Deref => RVal::Deref(Box::new(a)),
                     PostfixOp::Index(index) => RVal::Index(Box::new(a), Box::new(index)),
+                    PostfixOp::IndexSlice(start, len) => {
+                        RVal::IndexSlice(Box::new(a), start.map(Box::new), len.map(Box::new))
+                    }
+                    PostfixOp::Deref => RVal::Deref(Box::new(a)),
                     PostfixOp::AddressOf => RVal::AddressOf(Box::new(a)),
                 })
                 .boxed()
@@ -142,6 +156,17 @@ impl DisplayViaMem for RVal {
             RVal::Deref(inner) => write!(f, "{}.*", mem.display(inner)),
             RVal::Index(base, offset) => {
                 write!(f, "{}[{}]", mem.display(base), mem.display(offset))
+            }
+            RVal::IndexSlice(base, start, len) => {
+                let start = start
+                    .as_ref()
+                    .map(|x| mem.display(x).to_string())
+                    .unwrap_or_default();
+                let len = len
+                    .as_ref()
+                    .map(|x| mem.display(x).to_string())
+                    .unwrap_or_default();
+                write!(f, "{}[{start}..{len}]", mem.display(base))
             }
             RVal::CellRef(r) => write!(f, "{r}"),
             RVal::Usize(u) => write!(f, "{u}"),

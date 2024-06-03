@@ -3,6 +3,7 @@ use pentagwam::{
     defs::{CellRef, Sym},
 };
 use serde::{Deserialize, Serialize};
+use val::{Region, Val};
 
 use super::*;
 use crate::human_powered_vm::error::{Error, Result};
@@ -17,21 +18,27 @@ pub enum ValTy {
     Symbol,
     Functor,
     TypeOf(String),
+    Slice,
 }
 
 impl ValTy {
-    pub fn default_val(&self) -> val::Val {
+    pub fn default_val(&self) -> Val {
         match self {
-            ValTy::CellRef => val::Val::CellRef(CellRef::new(0)),
-            ValTy::Cell => val::Val::Cell(Cell::Nil),
-            ValTy::Usize => val::Val::Usize(0),
-            ValTy::I32 => val::Val::I32(0),
-            ValTy::Symbol => val::Val::Symbol("".to_string()),
-            ValTy::Functor => val::Val::Cell(Cell::Sig(Functor {
+            ValTy::CellRef => Val::CellRef(CellRef::new(0)),
+            ValTy::Cell => Val::Cell(Cell::Nil),
+            ValTy::Usize => Val::Usize(0),
+            ValTy::I32 => Val::I32(0),
+            ValTy::Symbol => Val::Symbol("".to_string()),
+            ValTy::Functor => Val::Cell(Cell::Sig(Functor {
                 sym: Sym::new(0),
                 arity: 0,
             })),
             ValTy::TypeOf(_) => panic!("Can't create default value for `TypeOf(..)`"),
+            ValTy::Slice => Val::Slice {
+                region: Region::Mem,
+                start: None,
+                len: None,
+            },
         }
     }
 }
@@ -46,6 +53,7 @@ impl fmt::Display for ValTy {
             ValTy::Symbol => write!(f, "Symbol"),
             ValTy::Functor => write!(f, "Functor"),
             ValTy::TypeOf(field) => write!(f, "TypeOf({field})"),
+            ValTy::Slice => write!(f, "Slice"),
         }
     }
 }
