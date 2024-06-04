@@ -3,7 +3,7 @@ use pentagwam::{
     defs::{CellRef, Sym},
 };
 use serde::{Deserialize, Serialize};
-use val::{Region, Val};
+use val::{slice::Region, slice::Slice, Val};
 
 use super::*;
 use crate::human_powered_vm::error::{Error, Result};
@@ -34,11 +34,11 @@ impl ValTy {
                 arity: 0,
             })),
             ValTy::TypeOf(_) => panic!("Can't create default value for `TypeOf(..)`"),
-            ValTy::Slice => Val::Slice {
+            ValTy::Slice => Val::Slice(Slice {
                 region: Region::Mem,
                 start: None,
                 len: None,
-            },
+            }),
         }
     }
 }

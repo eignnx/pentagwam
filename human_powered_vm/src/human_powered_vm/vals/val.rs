@@ -5,6 +5,7 @@ use pentagwam::{
     mem::{DisplayViaMem, Mem},
 };
 use serde::{Deserialize, Serialize};
+use slice::Slice;
 use std::fmt;
 
 use super::{rval::SLICE_IDX_LEN_SEP, valty::ValTy};
@@ -18,26 +19,7 @@ pub enum Val {
     I32(i32),
     Symbol(String),
     Cell(Cell),
-    Slice {
-        region: Region,
-        start: Option<usize>,
-        len: Option<usize>,
-    },
-}
-
-#[derive(Debug, From, Clone, Serialize, Deserialize)]
-pub enum Region {
-    Mem,
-    Code,
-}
-
-impl fmt::Display for Region {
-    fn fmt(&self, f: &mut fmt::Formatter) -> fmt::Result {
-        match self {
-            Region::Mem => write!(f, "<heap-segment>"),
-            Region::Code => write!(f, "<code-segment>"),
-        }
-    }
+    Slice(Slice<usize>),
 }
 
 impl Default for Val {
@@ -54,7 +36,7 @@ impl fmt::Display for Val {
             Val::I32(i) => write!(f, "{i:+}"),
             Val::Symbol(s) => write!(f, ":{s}"),
             Val::Cell(cell) => write!(f, "{cell:?}"),
-            Val::Slice { region, start, len } => {
+            Val::Slice(Slice { region, start, len }) => {
                 let start = start.map_or_else(String::new, |i| i.to_string());
                 let len = len.map_or_else(String::new, |i| i.to_string());
                 write!(f, "{region}[{start}{SLICE_IDX_LEN_SEP}{len}]")
@@ -137,6 +119,17 @@ impl Val {
             }),
         }
     }
+
+    pub fn try_as_any_int(&self) -> Result<i64> {
+        match self {
+            Val::I32(i) => Ok(*i as i64),
+            Val::Usize(u) => Ok(*u as i64),
+            other => Err(Error::TypeError {
+                expected: "I32 or Usize".into(),
+                received: other.ty(),
+            }),
+        }
+    }
 }
 
 impl DisplayViaMem for Val {
@@ -182,7 +175,7 @@ impl DisplayViaMem for Val {
             Val::Cell(Cell::Rcd(cell_ref)) => write!(f, "Rcd({cell_ref})"),
             Val::Cell(Cell::Lst(cell_ref)) => write!(f, "Lst({cell_ref})"),
             Val::Cell(Cell::Nil) => write!(f, "Nil"),
-            Val::Slice { region, start, len } => {
+            Val::Slice(Slice { region, start, len }) => {
                 let start = start.map_or_else(String::new, |i| i.to_string());
                 let len = len.map_or_else(String::new, |i| i.to_string());
                 write!(f, "{region}[{start}{SLICE_IDX_LEN_SEP}{len}]")

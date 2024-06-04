@@ -8,7 +8,7 @@ use super::{
         cellval::CellVal,
         lval::LVal,
         rval::RVal,
-        val::{Region, Val},
+        val::{slice::Region, slice::Slice, Val},
         valty::ValTy,
     },
     HumanPoweredVm,
@@ -17,7 +17,7 @@ use super::{
 impl HumanPoweredVm {
     pub(super) fn eval_to_val(&self, rval: &RVal) -> Result<Val> {
         match rval {
-            RVal::AddressOf(inner) => self.eval_address_of_to_val(inner),
+            RVal::AddressOf(inner) => self.eval_address_of(inner),
             RVal::Deref(inner) => {
                 let val = self.eval_to_val(inner)?;
                 let cell_ref = val.try_as_cell_ref_like()?;
@@ -36,44 +36,7 @@ impl HumanPoweredVm {
                     .ok_or(Error::OutOfBoundsMemRead(addr))
             }
             RVal::IndexSlice(base, start, len) => {
-                let start = self.try_eval_as_usize_bound(start)?;
-                let len = self.try_eval_as_usize_bound(len)?;
-                match self.eval_to_val(base)? {
-                    Val::CellRef(base) => Ok(Val::Slice {
-                        region: Region::Mem,
-                        start: Some(base.usize() + start.unwrap_or(0)),
-                        len,
-                    }),
-                    Val::Usize(base) => Ok(Val::Slice {
-                        region: Region::Code,
-                        start: Some(base + start.unwrap_or(0)),
-                        len,
-                    }),
-                    Val::Slice {
-                        region,
-                        start: old_start,
-                        len: old_len,
-                    } => {
-                        let len = match (old_len, len) {
-                            (None, None) => None,
-                            (None, Some(new)) => Some(new),
-                            (Some(old), None) => Some(old),
-                            (Some(old), Some(new)) if new <= old - start.unwrap_or(0) => Some(new),
-                            (Some(old_len), Some(new_len)) => {
-                                return Err(Error::BadSliceBounds {
-                                    old_len,
-                                    new_start: start.unwrap_or(0),
-                                    new_len,
-                                })
-                            }
-                        };
-                        let start = old_start.zip(start).map(|(old, new)| old + new);
-                        Ok(Val::Slice { region, start, len })
-                    }
-                    other => Err(Error::UnsliceableValue(
-                        self.mem.display(&other).to_string(),
-                    )),
-                }
+                self.eval_index_slice(base, start.as_deref(), len.as_deref())
             }
             RVal::Usize(u) => Ok(Val::Usize(*u)),
             RVal::I32(i) => Ok(Val::I32(*i)),
@@ -116,7 +79,69 @@ impl HumanPoweredVm {
         }
     }
 
-    fn eval_address_of_to_val(&self, inner: &RVal) -> Result<Val> {
+    fn eval_index_slice(
+        &self,
+        base: &RVal,
+        start: Option<&RVal>,
+        len: Option<&RVal>,
+    ) -> std::prelude::v1::Result<Val, Error> {
+        let start = self.try_eval_as_slice_bound(start)?;
+        let len = self.try_eval_as_slice_bound(len)?;
+
+        let base_slice = match self.eval_to_val(base)? {
+            Val::CellRef(base) => modname::Slice {
+                region: modname::Region::Mem,
+                start: Some(base.usize() as i64),
+                len: None,
+            },
+
+            Val::Usize(base) => modname::Slice {
+                region: modname::Region::Code,
+                start: Some(base as i64),
+                len: None,
+            },
+
+            Val::Slice(slice) => slice,
+            other => {
+                return Err(Error::UnsliceableValue(
+                    self.mem.display(&other).to_string(),
+                ))
+            }
+        };
+
+        let len = match (base_slice.len, len) {
+            // If the base slice and the subslice are unbounded in length, so is
+            // the resulting slice.
+            (None, None) => None,
+            // If the base slice is unbounded, but the subslice is bounded, the
+            // resulting slice is bounded by the subslice.
+            (None, Some(new)) => Some(new),
+            // If the base slice is bounded, but the subslice isn't, the resulting
+            // slice is bounded by the base slice.
+            (Some(old), None) => Some(old),
+            // If the base slice and the subslice are both bounded, and assuming
+            // the subslice's requested length isn't more than the base slice's
+            // length, the resulting slice's length is the subslice's length.
+            (Some(old), Some(new)) if new <= old - start.unwrap_or(0) => Some(new),
+            (Some(base_len), Some(new_len)) => {
+                return Err(Error::BadSliceBounds {
+                    base_len,
+                    slice_start: start.unwrap_or(0),
+                    slice_len: new_len,
+                })
+            }
+        };
+
+        let start = base_slice.start.zip(start).map(|(old, new)| old + new);
+
+        Ok(Val::Slice(modname::Slice {
+            region: base_slice.region,
+            start,
+            len,
+        }))
+    }
+
+    fn eval_address_of(&self, inner: &RVal) -> Result<Val> {
         match inner {
             RVal::Deref(inner) => Ok(Val::CellRef(
                 self.eval_to_val(inner.as_ref())?.try_as_cell_ref()?,
@@ -127,10 +152,16 @@ impl HumanPoweredVm {
                 Ok(Val::CellRef(base + offset))
             }
             RVal::IndexSlice(base, start, _len) => {
-                let start = self.try_eval_as_usize_bound(start)?;
+                let start = self.try_eval_as_slice_bound(start.as_deref())?;
                 match self.eval_to_val(base)? {
-                    Val::CellRef(base) => Ok(Val::CellRef(base + start.unwrap_or(0))),
-                    Val::Usize(base) => Ok(Val::Usize(base + start.unwrap_or(0))),
+                    Val::CellRef(base) => {
+                        let addr = (base.usize() as i64 + start.unwrap_or(0)) as usize;
+                        Ok(Val::CellRef(addr.into()))
+                    }
+                    Val::Usize(base) => {
+                        let addr = (base as i64 + start.unwrap_or(0)) as usize;
+                        Ok(Val::Usize(addr))
+                    }
                     other => Err(Error::UnsliceableValue(
                         self.mem.display(&other).to_string(),
                     )),
@@ -280,11 +311,11 @@ impl HumanPoweredVm {
         Ok(rhs)
     }
 
-    fn try_eval_as_usize_bound(&self, rval_opt: &Option<Box<RVal>>) -> Result<Option<usize>> {
+    fn try_eval_as_slice_bound(&self, rval_opt: Option<&RVal>) -> Result<Option<i64>> {
         let Some(rval) = rval_opt.as_ref() else {
             return Ok(None);
         };
         let val = self.eval_to_val(rval)?;
-        Ok(Some(val.try_as_usize()?))
+        Ok(Some(val.try_as_any_int()?))
     }
 }

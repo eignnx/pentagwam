@@ -38,9 +38,9 @@ pub enum Error {
     },
     UnsliceableValue(String),
     BadSliceBounds {
-        old_len: usize,
-        new_start: usize,
-        new_len: usize,
+        base_len: i64,
+        slice_start: i64,
+        slice_len: i64,
     },
 }
 
@@ -91,7 +91,7 @@ impl fmt::Display for Error {
                              Slice can be sliced.")
 
             }
-            Error::BadSliceBounds { old_len, new_start, new_len } => {
+            Error::BadSliceBounds { base_len: old_len, slice_start: new_start, slice_len: new_len } => {
                 writeln!(f, "Bad slice: `<…>[{new_start}..{new_len}]` produces \
                              a slice of length `{new_len}`, but the original \
                              slice was of length `{old_len}`, and you asked \
