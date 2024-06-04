@@ -7,9 +7,8 @@ use pentagwam::{
 use serde::{Deserialize, Serialize};
 use std::fmt;
 
+use super::{rval::SLICE_IDX_LEN_SEP, valty::ValTy};
 use crate::human_powered_vm::error::{Error, Result};
-
-use super::valty::ValTy;
 
 #[derive(Debug, From, Clone, Serialize, Deserialize)]
 pub enum Val {
@@ -58,7 +57,7 @@ impl fmt::Display for Val {
             Val::Slice { region, start, len } => {
                 let start = start.map_or_else(String::new, |i| i.to_string());
                 let len = len.map_or_else(String::new, |i| i.to_string());
-                write!(f, "{region}[{start}..{len}]")
+                write!(f, "{region}[{start}{SLICE_IDX_LEN_SEP}{len}]")
             }
         }
     }
@@ -186,7 +185,7 @@ impl DisplayViaMem for Val {
             Val::Slice { region, start, len } => {
                 let start = start.map_or_else(String::new, |i| i.to_string());
                 let len = len.map_or_else(String::new, |i| i.to_string());
-                write!(f, "{region}[{start}..{len}]")
+                write!(f, "{region}[{start}{SLICE_IDX_LEN_SEP}{len}]")
             }
         }
     }

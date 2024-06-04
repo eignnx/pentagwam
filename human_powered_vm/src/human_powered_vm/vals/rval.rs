@@ -32,6 +32,8 @@ impl Default for RVal {
     }
 }
 
+pub const SLICE_IDX_LEN_SEP: &str = ";";
+
 impl RVal {
     pub fn ty(&self) -> ValTy {
         match self {
@@ -112,7 +114,7 @@ impl RVal {
             let index_slice_p = rval
                 .clone()
                 .or_not()
-                .then_ignore(just(".."))
+                .then_ignore(just(SLICE_IDX_LEN_SEP))
                 .then(rval.clone().or_not())
                 .map(|(start, len)| PostfixOp::IndexSlice(start, len));
             let index_p = rval.clone().map(PostfixOp::Index);
@@ -166,7 +168,7 @@ impl DisplayViaMem for RVal {
                     .as_ref()
                     .map(|x| mem.display(x).to_string())
                     .unwrap_or_default();
-                write!(f, "{}[{start}..{len}]", mem.display(base))
+                write!(f, "{}[{start}{SLICE_IDX_LEN_SEP}{len}]", mem.display(base))
             }
             RVal::CellRef(r) => write!(f, "{r}"),
             RVal::Usize(u) => write!(f, "{u}"),
