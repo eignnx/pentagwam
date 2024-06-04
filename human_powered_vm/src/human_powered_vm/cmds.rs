@@ -65,44 +65,44 @@ impl HumanPoweredVm {
         if let Val::Slice { region, start, len } = val {
             match region {
                 Region::Mem => {
-                    let old_len = self.mem.heap.len();
-                    let start = start.unwrap_or(0);
-                    let len = match (old_len, len) {
-                        (old_len, None) => old_len,
-                        (old_len, Some(new)) if new <= old_len - start => new,
-                        (old_len, Some(new_len)) => {
-                            return Err(Error::BadSliceBounds {
-                                old_len,
-                                new_start: start,
-                                new_len,
-                            })
-                        }
+                    let total_len = self.mem.heap.len();
+                    let slice_start = start.unwrap_or_default();
+                    let slice_len = match len {
+                        Some(len) => len,
+                        None => total_len - slice_start,
                     };
-                    println!("{:^-20}", "HEAP SEGMENT");
-                    for i in start..start + len {
+                    if slice_len > total_len {
+                        return Err(Error::BadSliceBounds {
+                            old_len: total_len,
+                            new_start: slice_start,
+                            new_len: slice_len,
+                        });
+                    }
+                    println!("{:-^20}", "HEAP SEGMENT");
+                    for i in slice_start..slice_start + slice_len {
                         println!("{i:04}: {}", self.mem.display(&self.mem.heap[i]));
                     }
-                    println!("{:^-20}", "");
+                    println!("{:-^20}", "");
                 }
                 Region::Code => {
-                    let old_len = self.program.len();
-                    let start = start.unwrap_or(0);
-                    let len = match (old_len, len) {
-                        (old_len, None) => old_len,
-                        (old_len, Some(new)) if new <= old_len - start => new,
-                        (old_len, Some(new_len)) => {
-                            return Err(Error::BadSliceBounds {
-                                old_len,
-                                new_start: start,
-                                new_len,
-                            })
-                        }
+                    let total_len = self.program.len();
+                    let slice_start = start.unwrap_or_default();
+                    let slice_len = match len {
+                        Some(len) => len,
+                        None => total_len - slice_start,
                     };
-                    println!("{:^-20}", "CODE SEGMENT");
-                    for i in start..start + len {
+                    if slice_len > total_len {
+                        return Err(Error::BadSliceBounds {
+                            old_len: total_len,
+                            new_start: slice_start,
+                            new_len: slice_len,
+                        });
+                    }
+                    println!("{:-^20}", "CODE SEGMENT");
+                    for i in slice_start..slice_start + slice_len {
                         println!("{i:04}: {}", self.mem.display(&self.program[i]));
                     }
-                    println!("{:^-20}", "");
+                    println!("{:-^20}", "");
                 }
             }
         } else {
