@@ -1,6 +1,9 @@
 use chumsky::{primitive::end, Parser};
 
-use crate::human_powered_vm::vals::{lval::LVal, rval::RVal};
+use crate::human_powered_vm::{
+    error::Error,
+    vals::{lval::LVal, rval::RVal},
+};
 
 use super::{
     error::Result,
@@ -82,14 +85,23 @@ impl HumanPoweredVm {
             Region::Mem => {
                 println!("{:-^20}", "HEAP SEGMENT");
                 for i in slice.start..slice.start + slice.len {
-                    println!("{i:04}: {}", self.mem.display(&self.mem.heap[i]));
+                    let cell = self
+                        .mem
+                        .heap
+                        .get(i)
+                        .ok_or(Error::OutOfBoundsMemRead(slice.region, i))?;
+                    println!("{i:04}: {}", self.mem.display(cell));
                 }
                 println!("{:-^20}", "");
             }
             Region::Code => {
                 println!("{:-^20}", "CODE SEGMENT");
                 for i in slice.start..slice.start + slice.len {
-                    println!("{i:04}: {}", self.mem.display(&self.program[i]));
+                    let instr = self
+                        .program
+                        .get(i)
+                        .ok_or(Error::OutOfBoundsMemRead(slice.region, i))?;
+                    println!("{i:04}: {}", self.mem.display(instr));
                 }
                 println!("{:-^20}", "");
             }

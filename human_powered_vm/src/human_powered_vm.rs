@@ -2,7 +2,7 @@ use derive_more::From;
 use pentagwam::{
     bc::instr::Instr,
     cell::Functor,
-    defs::{CellRef, Sym},
+    defs::Sym,
     mem::{DisplayViaMem, Mem},
 };
 use serde::{Deserialize, Serialize};

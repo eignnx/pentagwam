@@ -25,7 +25,7 @@ impl HumanPoweredVm {
                 self.mem
                     .try_cell_read(cell_ref)
                     .map(Val::Cell)
-                    .ok_or(Error::OutOfBoundsMemRead(cell_ref))
+                    .ok_or(Error::OutOfBoundsMemRead(Region::Mem, cell_ref.usize()))
             }
             RVal::Index(base, offset) => {
                 let base = self.eval_to_val(base)?.try_as_cell_ref_like()?;
@@ -34,7 +34,7 @@ impl HumanPoweredVm {
                 self.mem
                     .try_cell_read(addr)
                     .map(Val::Cell)
-                    .ok_or(Error::OutOfBoundsMemRead(addr))
+                    .ok_or(Error::OutOfBoundsMemRead(Region::Mem, addr.usize()))
             }
             RVal::IndexSlice(base, start, len) => {
                 self.eval_index_slice(base, start.as_deref(), len.as_deref())
@@ -198,7 +198,7 @@ impl HumanPoweredVm {
                 }
                 self.mem
                     .try_cell_write(r, rhs.try_as_cell()?)
-                    .ok_or(Error::OutOfBoundsMemWrite(r))?;
+                    .ok_or(Error::OutOfBoundsMemWrite(Region::Mem, r.usize()))?;
             }
 
             // arr[123] <- <rval>
@@ -208,7 +208,7 @@ impl HumanPoweredVm {
                 let addr = base + offset;
                 self.mem
                     .try_cell_write(addr, rhs.try_as_cell()?)
-                    .ok_or(Error::OutOfBoundsMemWrite(addr))?;
+                    .ok_or(Error::OutOfBoundsMemWrite(Region::Mem, addr.usize()))?;
             }
 
             // some_field <- <rval>

@@ -1,5 +1,7 @@
 use std::fmt;
 
+use vals::slice::Region;
+
 use self::vals::valty::ValTy;
 
 use super::*;
@@ -20,8 +22,8 @@ pub enum Error {
     BadSaveFileFormat(String),
     UndefinedField(String),
     UndefinedTmpVar(String),
-    OutOfBoundsMemRead(CellRef),
-    OutOfBoundsMemWrite(CellRef),
+    OutOfBoundsMemRead(Region, usize),
+    OutOfBoundsMemWrite(Region, usize),
     CantParseFunctor(String),
     TypeError {
         expected: String,
@@ -63,11 +65,11 @@ impl fmt::Display for Error {
             Error::BadSaveFileFormat(line) => write!(f, "Bad save file format: {line}"),
             Error::UndefinedField(field) => write!(f, "Undefined field `{field}`"),
             Error::UndefinedTmpVar(name) => write!(f, "Undefined temporary variable `.{name}`"),
-            Error::OutOfBoundsMemRead(cell_ref) => {
-                write!(f, "Out of bounds memory READ: {cell_ref}")
+            Error::OutOfBoundsMemRead(region, cell_ref) => {
+                write!(f, "Out of bounds memory READ: {region}[{cell_ref}]")
             }
-            Error::OutOfBoundsMemWrite(cell_ref) => {
-                write!(f, "Out of bounds memory WRITE: {cell_ref}")
+            Error::OutOfBoundsMemWrite(region, cell_ref) => {
+                write!(f, "Out of bounds memory WRITE: {region}[{cell_ref}]")
             }
             Error::CantParseFunctor(text) => write!(
                 f,
@@ -102,7 +104,7 @@ impl fmt::Display for Error {
             }
             Error::BelowBoundsSliceStart(below) => writeln!(
                 f,
-                "Slice absolute start index is less than 0: {below}"
+                "Attempt to slice at index less than absolute address 0: {below}"
             ),
         }
     }

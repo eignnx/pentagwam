@@ -41,7 +41,7 @@ impl Slice<Option<i64>> {
         let region = self.region;
 
         let abs_start_signed = self.start.unwrap_or(0) + base.start as i64;
-        let Ok(abs_start) = abs_start_signed.try_into() else {
+        let Ok(abs_start) = usize::try_from(abs_start_signed) else {
             return Err(Error::BelowBoundsSliceStart(abs_start_signed));
         };
 
@@ -68,7 +68,9 @@ impl Slice<Option<i64>> {
             //               |  |<- len ->|
             // new_start-----|->|
             Some(len) => (
-                abs_start - len.unsigned_abs() as usize,
+                abs_start
+                    .checked_sub(len.unsigned_abs() as usize)
+                    .ok_or(Error::BelowBoundsSliceStart(abs_start as i64 - len.abs()))?,
                 len.unsigned_abs() as usize,
             ),
         };
