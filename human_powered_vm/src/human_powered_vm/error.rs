@@ -42,6 +42,7 @@ pub enum Error {
         slice_start: i64,
         slice_len: i64,
     },
+    BelowBoundsSliceStart(i64),
 }
 
 impl fmt::Display for Error {
@@ -99,6 +100,10 @@ impl fmt::Display for Error {
                              That leaves only `{}` elements from the original \
                              slice available to subslice.", old_len - new_start)
             }
+            Error::BelowBoundsSliceStart(below) => writeln!(
+                f,
+                "Slice absolute start index is less than 0: {below}"
+            ),
         }
     }
 }

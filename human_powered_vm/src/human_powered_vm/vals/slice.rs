@@ -12,54 +12,72 @@ pub struct Slice<T> {
 }
 
 impl Slice<Option<i64>> {
+    pub fn normalized_from(
+        base: Slice<usize>,
+        start: Option<i64>,
+        len: Option<i64>,
+    ) -> Result<Slice<usize>> {
+        let slice = Slice {
+            region: base.region,
+            start,
+            len,
+        };
+        slice.normalize(base)
+    }
+
     /// Example:
     /// ```text
-    /// a = [0,1,2,3,4,5,6,7,8,9]
+    /// [-4,-3,-2,-1,0,1,2,3,4]
+    ///          a = ^
     /// (where X[INDEX;LENGTH] is a slice)
-    /// a[4;3]   => [4,5,6] => a[4;3]
-    /// a[4;-3]  => [2,3,4] => a[2;3]
-    /// a[-4;3]  => [6,7,8] => a[6;3]
-    /// a[-4:-3] => [4,5,6] => a[4;3]
+    /// a[0;3]   => [ 0, 1, 2] => a[4;3]
+    /// a[0;-3]  => [-3,-2,-1] => a[-3;3]
+    /// a[1;-3]  => [-2,-1, 0] => a[-2;3]
+    /// a[-1;3]  => [-1, 0, 1] => a[-1;3]
+    /// a[-1:-3] => [-4,-3,-2] => a[-4;3]
     /// ```
     pub fn normalize(&self, base: Slice<usize>) -> Result<Slice<usize>> {
         debug_assert_eq!(self.region, base.region);
         let region = self.region;
-        let start = self.start.unwrap_or(base.start as i64);
-        let start = if start < 0 {
-            (base.len as i64 + start) as usize
-        } else {
-            start as usize
+
+        let abs_start_signed = self.start.unwrap_or(0) + base.start as i64;
+        let Ok(abs_start) = abs_start_signed.try_into() else {
+            return Err(Error::BelowBoundsSliceStart(abs_start_signed));
         };
 
-        let Some(rem_len_after_start) = base.len.checked_sub(start) else {
-            return Err(Error::BadSliceBounds {
-                base_len: base.len as i64,
-                slice_start: start as i64,
-                slice_len: self.len.unwrap_or(base.len as i64),
-            });
+        let (new_start, len) = match self.len {
+            // Example:
+            //              |<-----base.len------->|
+            //              [*****|****************]
+            // base.start-->|     |                |
+            // abs_start----|---->|                |
+            // new_start----|---->|<----- len ---->|
+            None => (abs_start, base.start + base.len - abs_start),
+            // Example:
+            //              |<-----base.len------->|
+            //              [*****|*********|******]
+            // base.start-->|     |         |
+            // abs_start----|---->|         |
+            // new_start----|---->|<- len ->|
+            Some(len) if len >= 0 => (abs_start, len as usize),
+            // Example:
+            //               |<----base.len----->|
+            //               [**|*********|******]
+            // base.start--->|  |         |
+            // abs_start-----|--|-------->|
+            //               |  |<- len ->|
+            // new_start-----|->|
+            Some(len) => (
+                abs_start - len.unsigned_abs() as usize,
+                len.unsigned_abs() as usize,
+            ),
         };
 
-        // let len =
-        todo!()
-        // Slice {
-        //     region: self.region,
-        //     start: {
-        //         let start = self.start.unwrap_or(0);
-        //         if start < 0 {
-        //             Some((base_len as i64 + start) as usize)
-        //         } else {
-        //             self.start.map(|i| i as usize)
-        //         }
-        //     },
-        //     len: {
-        //         let len = self.len.unwrap_or(base_len as i64);
-        //         if len < 0 {
-        //             Some((base_len as i64 + len) as usize)
-        //         } else {
-        //             self.len.map(|i| i as usize)
-        //         }
-        //     },
-        // }
+        Ok(Slice {
+            region,
+            start: new_start,
+            len,
+        })
     }
 }
 

@@ -8,7 +8,8 @@ use super::{
         cellval::CellVal,
         lval::LVal,
         rval::RVal,
-        val::{slice::Region, slice::Slice, Val},
+        slice::{Region, Slice},
+        val::Val,
         valty::ValTy,
     },
     HumanPoweredVm,
@@ -84,24 +85,25 @@ impl HumanPoweredVm {
         base: &RVal,
         start: Option<&RVal>,
         len: Option<&RVal>,
-    ) -> std::prelude::v1::Result<Val, Error> {
+    ) -> Result<Val> {
         let start = self.try_eval_as_slice_bound(start)?;
         let len = self.try_eval_as_slice_bound(len)?;
 
-        let base_slice = match self.eval_to_val(base)? {
-            Val::CellRef(base) => modname::Slice {
-                region: modname::Region::Mem,
-                start: Some(base.usize() as i64),
-                len: None,
+        let base_slice: Slice<usize> = match self.eval_to_val(base)? {
+            Val::CellRef(base) => Slice {
+                region: Region::Mem,
+                start: base.usize(),
+                len: 0,
             },
 
-            Val::Usize(base) => modname::Slice {
-                region: modname::Region::Code,
-                start: Some(base as i64),
-                len: None,
+            Val::Usize(base) => Slice {
+                region: Region::Code,
+                start: base,
+                len: 0,
             },
 
             Val::Slice(slice) => slice,
+
             other => {
                 return Err(Error::UnsliceableValue(
                     self.mem.display(&other).to_string(),
@@ -109,36 +111,38 @@ impl HumanPoweredVm {
             }
         };
 
-        let len = match (base_slice.len, len) {
-            // If the base slice and the subslice are unbounded in length, so is
-            // the resulting slice.
-            (None, None) => None,
-            // If the base slice is unbounded, but the subslice is bounded, the
-            // resulting slice is bounded by the subslice.
-            (None, Some(new)) => Some(new),
-            // If the base slice is bounded, but the subslice isn't, the resulting
-            // slice is bounded by the base slice.
-            (Some(old), None) => Some(old),
-            // If the base slice and the subslice are both bounded, and assuming
-            // the subslice's requested length isn't more than the base slice's
-            // length, the resulting slice's length is the subslice's length.
-            (Some(old), Some(new)) if new <= old - start.unwrap_or(0) => Some(new),
-            (Some(base_len), Some(new_len)) => {
-                return Err(Error::BadSliceBounds {
-                    base_len,
-                    slice_start: start.unwrap_or(0),
-                    slice_len: new_len,
-                })
-            }
-        };
+        Ok(Val::Slice(Slice::normalized_from(base_slice, start, len)?))
 
-        let start = base_slice.start.zip(start).map(|(old, new)| old + new);
+        // let len = match (base_slice.len, len) {
+        //     // If the base slice and the subslice are unbounded in length, so is
+        //     // the resulting slice.
+        //     (None, None) => None,
+        //     // If the base slice is unbounded, but the subslice is bounded, the
+        //     // resulting slice is bounded by the subslice.
+        //     (None, Some(new)) => Some(new),
+        //     // If the base slice is bounded, but the subslice isn't, the resulting
+        //     // slice is bounded by the base slice.
+        //     (Some(old), None) => Some(old),
+        //     // If the base slice and the subslice are both bounded, and assuming
+        //     // the subslice's requested length isn't more than the base slice's
+        //     // length, the resulting slice's length is the subslice's length.
+        //     (Some(old), Some(new)) if new <= old - start.unwrap_or(0) => Some(new),
+        //     (Some(base_len), Some(new_len)) => {
+        //         return Err(Error::BadSliceBounds {
+        //             base_len,
+        //             slice_start: start.unwrap_or(0),
+        //             slice_len: new_len,
+        //         })
+        //     }
+        // };
 
-        Ok(Val::Slice(modname::Slice {
-            region: base_slice.region,
-            start,
-            len,
-        }))
+        // let start = base_slice.start.zip(start).map(|(old, new)| old + new);
+
+        // Ok(Val::Slice(Slice {
+        //     region: base_slice.region,
+        //     start,
+        //     len,
+        // }))
     }
 
     fn eval_address_of(&self, inner: &RVal) -> Result<Val> {

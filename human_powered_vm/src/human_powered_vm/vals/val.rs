@@ -1,3 +1,4 @@
+use super::slice::Slice;
 use derive_more::From;
 use pentagwam::{
     cell::{Cell, Functor},
@@ -5,7 +6,6 @@ use pentagwam::{
     mem::{DisplayViaMem, Mem},
 };
 use serde::{Deserialize, Serialize};
-use slice::Slice;
 use std::fmt;
 
 use super::{rval::SLICE_IDX_LEN_SEP, valty::ValTy};
@@ -37,8 +37,6 @@ impl fmt::Display for Val {
             Val::Symbol(s) => write!(f, ":{s}"),
             Val::Cell(cell) => write!(f, "{cell:?}"),
             Val::Slice(Slice { region, start, len }) => {
-                let start = start.map_or_else(String::new, |i| i.to_string());
-                let len = len.map_or_else(String::new, |i| i.to_string());
                 write!(f, "{region}[{start}{SLICE_IDX_LEN_SEP}{len}]")
             }
         }
@@ -176,8 +174,6 @@ impl DisplayViaMem for Val {
             Val::Cell(Cell::Lst(cell_ref)) => write!(f, "Lst({cell_ref})"),
             Val::Cell(Cell::Nil) => write!(f, "Nil"),
             Val::Slice(Slice { region, start, len }) => {
-                let start = start.map_or_else(String::new, |i| i.to_string());
-                let len = len.map_or_else(String::new, |i| i.to_string());
                 write!(f, "{region}[{start}{SLICE_IDX_LEN_SEP}{len}]")
             }
         }

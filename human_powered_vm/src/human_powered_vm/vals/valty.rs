@@ -1,12 +1,13 @@
+use super::{
+    slice::{Region, Slice},
+    val::Val,
+};
+use crate::human_powered_vm::error::{Error, Result};
 use pentagwam::{
     cell::{Cell, Functor},
     defs::{CellRef, Sym},
 };
 use serde::{Deserialize, Serialize};
-use val::{slice::Region, slice::Slice, Val};
-
-use super::*;
-use crate::human_powered_vm::error::{Error, Result};
 use std::{fmt, str::FromStr};
 
 #[derive(Debug, Clone, PartialEq, Eq, Serialize, Deserialize)]
@@ -36,8 +37,8 @@ impl ValTy {
             ValTy::TypeOf(_) => panic!("Can't create default value for `TypeOf(..)`"),
             ValTy::Slice => Val::Slice(Slice {
                 region: Region::Mem,
-                start: None,
-                len: None,
+                start: 0,
+                len: 0,
             }),
         }
     }
