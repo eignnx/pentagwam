@@ -47,6 +47,10 @@ impl CellRef {
     pub fn usize(self) -> usize {
         self.0.try_into().unwrap()
     }
+
+    pub fn i64(self) -> i64 {
+        self.0 as i64
+    }
 }
 
 impl std::ops::Add<CellRef> for CellRef {
