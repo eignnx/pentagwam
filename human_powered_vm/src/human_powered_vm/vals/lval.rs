@@ -45,7 +45,7 @@ impl FromStr for LVal {
 impl DisplayViaMem for LVal {
     fn display_via_mem(&self, f: &mut fmt::Formatter<'_>, mem: &Mem) -> fmt::Result {
         match self {
-            LVal::Field(field) => write!(f, "self.{field}"),
+            LVal::Field(field) => write!(f, "{field}"),
             LVal::TmpVar(name) => write!(f, ".{name}"),
             LVal::Deref(rval) => write!(f, "{}.*", mem.display(rval)),
             LVal::Index(base, offset) => {

@@ -182,7 +182,7 @@ impl DisplayViaMem for RVal {
                     write!(f, ":{s}")
                 }
             }
-            RVal::Field(field) => write!(f, "self.{field}"),
+            RVal::Field(field) => write!(f, "{field}"),
             RVal::TmpVar(name) => write!(f, ".{name}"),
             RVal::Cell(cell) => write!(f, "{}", mem.display(cell)),
         }
