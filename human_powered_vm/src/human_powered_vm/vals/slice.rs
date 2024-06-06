@@ -13,9 +13,9 @@ pub struct Slice<I> {
 
 #[derive(Debug, Clone, Serialize, Deserialize)]
 pub enum Idx<I> {
-    /// Syntax: `lo`
+    /// Syntax: `--`
     Lo,
-    /// Syntax: `hi`
+    /// Syntax: `++`
     Hi,
     Int(I),
 }
@@ -34,6 +34,11 @@ pub enum Region {
     Mem,
     Code,
 }
+
+pub const LO_TOK: &str = "--";
+pub const HI_TOK: &str = "++";
+pub const NEG_INF_TOK: &str = "--";
+pub const POS_INF_TOK: &str = "++";
 
 impl<I> Slice<I> {
     pub fn map_int<O, E>(&self, f: impl Fn(&I) -> Result<O, E>) -> Result<Slice<O>, E> {
@@ -152,8 +157,8 @@ impl<I> Len<I> {
 impl<I: fmt::Display> fmt::Display for Idx<I> {
     fn fmt(&self, f: &mut fmt::Formatter<'_>) -> fmt::Result {
         match self {
-            Idx::Lo => write!(f, "lo"),
-            Idx::Hi => write!(f, "hi"),
+            Idx::Lo => write!(f, "{}", LO_TOK),
+            Idx::Hi => write!(f, "{}", HI_TOK),
             Idx::Int(i) => write!(f, "{i}"),
         }
     }
@@ -162,8 +167,8 @@ impl<I: fmt::Display> fmt::Display for Idx<I> {
 impl<I: DisplayViaMem> DisplayViaMem for Idx<I> {
     fn display_via_mem(&self, f: &mut fmt::Formatter<'_>, mem: &Mem) -> fmt::Result {
         match self {
-            Idx::Lo => write!(f, "lo"),
-            Idx::Hi => write!(f, "hi"),
+            Idx::Lo => write!(f, "{}", LO_TOK),
+            Idx::Hi => write!(f, "{}", HI_TOK),
             Idx::Int(i) => write!(f, "{}", mem.display(i)),
         }
     }
@@ -184,8 +189,8 @@ impl<I: std::ops::Add<i64>> std::ops::Add<i64> for Idx<I> {
 impl<I: fmt::Display> fmt::Display for Len<I> {
     fn fmt(&self, f: &mut fmt::Formatter<'_>) -> fmt::Result {
         match self {
-            Len::PosInf => write!(f, "++"),
-            Len::NegInf => write!(f, "--"),
+            Len::PosInf => write!(f, "{}", POS_INF_TOK),
+            Len::NegInf => write!(f, "{}", NEG_INF_TOK),
             Len::Int(i) => write!(f, "{i}"),
         }
     }
@@ -194,8 +199,8 @@ impl<I: fmt::Display> fmt::Display for Len<I> {
 impl<I: DisplayViaMem> DisplayViaMem for Len<I> {
     fn display_via_mem(&self, f: &mut fmt::Formatter<'_>, mem: &Mem) -> fmt::Result {
         match self {
-            Len::PosInf => write!(f, "++"),
-            Len::NegInf => write!(f, "--"),
+            Len::PosInf => write!(f, "{}", POS_INF_TOK),
+            Len::NegInf => write!(f, "{}", NEG_INF_TOK),
             Len::Int(i) => write!(f, "{}", mem.display(i)),
         }
     }

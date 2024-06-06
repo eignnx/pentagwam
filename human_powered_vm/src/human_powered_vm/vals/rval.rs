@@ -6,8 +6,7 @@ use std::{fmt, str::FromStr};
 
 use super::{
     cellval::CellVal,
-    slice::Slice,
-    slice::{Idx, Len},
+    slice::{self, Idx, Len, Slice},
     valty::ValTy,
 };
 use crate::human_powered_vm::error::{Error, Result};
@@ -114,14 +113,14 @@ impl RVal {
             }
 
             let idx_bound_p = choice((
-                just("lo").map(|_| Idx::Lo),
-                just("hi").map(|_| Idx::Hi),
+                just(slice::LO_TOK).map(|_| Idx::Lo),
+                just(slice::HI_TOK).map(|_| Idx::Hi),
                 rval.clone().map(Idx::Int),
             ));
 
             let len_bound_p = choice((
-                just("++").map(|_| Len::PosInf),
-                just("--").map(|_| Len::NegInf),
+                just(slice::POS_INF_TOK).map(|_| Len::PosInf),
+                just(slice::NEG_INF_TOK).map(|_| Len::NegInf),
                 rval.clone().map(Len::Int),
             ));
 
