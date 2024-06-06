@@ -35,10 +35,10 @@ pub enum Region {
     Code,
 }
 
-pub const LO_TOK: &str = "--";
-pub const HI_TOK: &str = "++";
-pub const NEG_INF_TOK: &str = "--";
-pub const POS_INF_TOK: &str = "++";
+pub const LO_TOK: &str = "-";
+pub const HI_TOK: &str = "+";
+pub const NEG_INF_TOK: &str = "-";
+pub const POS_INF_TOK: &str = "+";
 
 impl<I> Slice<I> {
     pub fn map_int<O, E>(&self, f: impl Fn(&I) -> Result<O, E>) -> Result<Slice<O>, E> {

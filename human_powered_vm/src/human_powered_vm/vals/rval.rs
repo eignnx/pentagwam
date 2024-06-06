@@ -113,15 +113,15 @@ impl RVal {
             }
 
             let idx_bound_p = choice((
+                rval.clone().map(Idx::Int),
                 just(slice::LO_TOK).map(|_| Idx::Lo),
                 just(slice::HI_TOK).map(|_| Idx::Hi),
-                rval.clone().map(Idx::Int),
             ));
 
             let len_bound_p = choice((
+                rval.clone().map(Len::Int),
                 just(slice::POS_INF_TOK).map(|_| Len::PosInf),
                 just(slice::NEG_INF_TOK).map(|_| Len::NegInf),
-                rval.clone().map(Len::Int),
             ));
 
             let index_slice_p = idx_bound_p

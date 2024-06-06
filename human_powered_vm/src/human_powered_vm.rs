@@ -375,9 +375,9 @@ impl HumanPoweredVm {
         println!("    <i32>   ::= +0 | -0 | +1 | -1 | +2 | -2 | …");
         println!();
         println!("    <idx>   ::= <usize> | <i32>");
-        println!("              | -- | ++              // lowest/highest+1 index");
+        println!("              | - | +              // lowest/highest+1 index");
         println!("    <idx>   ::= <usize> | <i32>");
-        println!("              | -- | ++              // min/max allowable length");
+        println!("              | - | +              // min/max allowable length");
         println!();
         println!("    <cell>  ::= Int(<i32>) | Sym(<sym>) | Ref(<cell_ref>)");
         println!("              | Rcd(<cell_ref>) | Sig(<functor>)");
