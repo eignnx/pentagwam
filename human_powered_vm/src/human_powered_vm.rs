@@ -1,3 +1,4 @@
+use chumsky::{primitive::end, Parser};
 use derive_more::From;
 use pentagwam::{
     bc::instr::Instr,
@@ -12,6 +13,7 @@ use std::{
     io::{Read, Write},
     ops::ControlFlow,
 };
+use vals::slice::{Idx, Len, Slice};
 
 use crate::human_powered_vm::{
     error::{Error, Result},
@@ -231,8 +233,16 @@ impl HumanPoweredVm {
                 }
             }
             ["list" | "l", rest @ ..] => {
-                println!("Program Listing:");
-                self.program_listing(rest)?;
+                let text = rest.join("");
+                let rval = text.parse()?;
+                let sliced = RVal::IndexSlice(
+                    Box::new(rval),
+                    Box::new(Slice {
+                        idx: Idx::Lo,
+                        len: Len::PosInf,
+                    }),
+                );
+                self.print_rval(&sliced)?;
             }
             ["next" | "n"] => {
                 *self.instr_ptr_mut() += 1;
@@ -246,7 +256,6 @@ impl HumanPoweredVm {
                 }
             }
             ["push", "term" | "tm", rest @ ..] => {
-                use chumsky::Parser;
                 let term_text: String = rest.join(" ");
                 let term_parser = pentagwam::syntax::Term::parser();
                 let term = term_parser.parse::<_, &str>(term_text.as_str())?;
@@ -267,7 +276,6 @@ impl HumanPoweredVm {
                 println!("!> Use `<lval> <- <rval>` to assign a value to an l-value.");
             }
             [lval, "<-", "term" | "tm", rest @ ..] => {
-                use chumsky::Parser;
                 let term_text: String = rest.join(" ");
                 let term_parser = pentagwam::syntax::Term::parser();
                 let term = term_parser.parse::<_, &str>(term_text.as_str())?;
@@ -320,14 +328,14 @@ impl HumanPoweredVm {
             }
             [tm @ ("term" | "tm"), rest @ ..] => {
                 // Display a Prolog term
-                use chumsky::Parser;
                 let term_text: String = rest.join(" ");
                 let term_parser = pentagwam::syntax::Term::parser();
                 let term = term_parser.parse::<_, &str>(term_text.as_str())?;
                 println!("=> {tm} {term}");
             }
             rval => {
-                self.print_rval(&rval.join(" ").to_string())?;
+                let rval = RVal::parser().then_ignore(end()).parse(rval.join(" "))?;
+                self.print_rval(&rval)?;
             }
         }
         Ok(ControlFlow::Continue(()))
@@ -374,9 +382,9 @@ impl HumanPoweredVm {
         println!("    <usize> ::= 0 | 1 | 2 | …");
         println!("    <i32>   ::= +0 | -0 | +1 | -1 | +2 | -2 | …");
         println!();
-        println!("    <idx>   ::= <usize> | <i32>");
+        println!("    <idx>   ::= <rval>");
         println!("              | - | +              // lowest/highest+1 index");
-        println!("    <idx>   ::= <usize> | <i32>");
+        println!("    <len>   ::= <rval>");
         println!("              | - | +              // min/max allowable length");
         println!();
         println!("    <cell>  ::= Int(<i32>) | Sym(<sym>) | Ref(<cell_ref>)");

@@ -1,5 +1,3 @@
-use chumsky::{primitive::end, Parser};
-
 use crate::human_powered_vm::{
     error::Error,
     vals::{lval::LVal, rval::RVal},
@@ -12,72 +10,17 @@ use super::{
 };
 
 impl HumanPoweredVm {
-    pub(super) fn program_listing(&self, rest: &[&str]) -> Result<()> {
-        match rest {
-            [] => {
-                for (i, instr) in self.program.iter().enumerate() {
-                    println!("{:04}: {}", i, self.mem.display(instr));
-                }
-            }
-            ["from", n] => {
-                let n = n.parse()?;
-                for (i, instr) in self.program.iter().enumerate().skip(n) {
-                    println!("{:04}: {}", i, self.mem.display(instr));
-                }
-            }
-            ["first", n] => {
-                let n = n.parse()?;
-                for (i, instr) in self.program.iter().enumerate().take(n) {
-                    println!("{:04}: {}", i, self.mem.display(instr));
-                }
-            }
-            ["next", n] => {
-                let n = n.parse()?;
-                for (i, instr) in self
-                    .program
-                    .iter()
-                    .enumerate()
-                    .skip(self.instr_ptr())
-                    .take(n)
-                {
-                    println!("{:04}: {}", i, self.mem.display(instr));
-                }
-            }
-            ["last", n] => {
-                let n = n.parse()?;
-                let skip = self.program.len().saturating_sub(n);
-                for (i, instr) in self.program.iter().enumerate().skip(skip) {
-                    println!("{:04}: {}", i, self.mem.display(instr));
-                }
-            }
-            ["prev" | "previous", n] => {
-                let n = n.parse()?;
-                let skip = self.instr_ptr().saturating_sub(n);
-                for (i, instr) in self.program.iter().enumerate().skip(skip).take(n) {
-                    println!("{:04}: {}", i, self.mem.display(instr));
-                }
-            }
-            _ => println!("!> Unknown `list` sub-command `{}`.", rest.join(" ")),
-        }
-        Ok(())
-    }
-
-    pub(super) fn print_rval(&self, rval_name: &str) -> Result<()> {
-        let rval = RVal::parser().then_ignore(end()).parse(rval_name)?;
-        let val = self.eval_to_val(&rval)?;
+    pub(super) fn print_rval(&self, rval: &RVal) -> Result<()> {
+        let val = self.eval_to_val(rval)?;
         if let Val::Slice { region, start, len } = val {
             self.print_slice(region, start, len)?;
         } else {
-            println!(
-                "=> {} == {}",
-                self.mem.display(&rval),
-                self.mem.display(&val)
-            );
+            println!("=> {}", self.mem.display(&val));
         }
         Ok(())
     }
 
-    fn print_slice(&self, region: Region, start: usize, len: usize) -> Result<()> {
+    pub(super) fn print_slice(&self, region: Region, start: usize, len: usize) -> Result<()> {
         match region {
             Region::Mem => {
                 println!("{:-^20}", "HEAP SEGMENT");
