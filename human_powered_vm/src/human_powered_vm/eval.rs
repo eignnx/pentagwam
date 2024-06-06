@@ -1,4 +1,4 @@
-use pentagwam::{cell::Cell, defs::CellRef};
+use pentagwam::cell::Cell;
 
 use crate::human_powered_vm::FieldData;
 
@@ -8,7 +8,7 @@ use super::{
         cellval::CellVal,
         lval::LVal,
         rval::RVal,
-        slice::{Region, Slice},
+        slice::{Idx, Len, Region, Slice},
         val::Val,
         valty::ValTy,
     },
@@ -28,17 +28,41 @@ impl HumanPoweredVm {
                     .ok_or(Error::OutOfBoundsMemRead(Region::Mem, cell_ref.usize()))
             }
             RVal::Index(base, offset) => {
-                let base = self.eval_to_val(base)?.try_as_cell_ref_like()?;
-                let offset = self.eval_to_val(offset)?.try_as_any_int()?;
-                let addr = CellRef::from((base.i64() + offset) as usize);
+                let (region, base) = match self.eval_to_val(base)? {
+                    Val::CellRef(cell_ref) => (Region::Mem, cell_ref.i64()),
+                    Val::Usize(u) => (Region::Code, u as i64),
+                    Val::I32(i) => (Region::Code, i as i64),
+                    Val::Slice { region, start, .. } => (region, start as i64),
+                    other => {
+                        return Err(Error::TypeError {
+                            expected: "CellRef or Usize or I32".into(),
+                            received: other.ty(),
+                        })
+                    }
+                };
+
+                let addr_i64 = match offset.as_ref() {
+                    Idx::Lo => base,
+                    Idx::Hi => match region {
+                        Region::Code => self.program.len() as i64,
+                        Region::Mem => self.mem.heap.len() as i64,
+                    },
+                    Idx::Int(idx_rval) => {
+                        let val = self.eval_to_val(idx_rval)?;
+                        let int = val.try_as_any_int()?;
+                        int + base
+                    }
+                };
+
+                let addr_usize = usize::try_from(addr_i64)
+                    .map_err(|_| Error::BelowBoundsSliceStart(addr_i64))?;
+
                 self.mem
-                    .try_cell_read(addr)
+                    .try_cell_read(addr_usize)
                     .map(Val::Cell)
-                    .ok_or(Error::OutOfBoundsMemRead(Region::Mem, addr.usize()))
+                    .ok_or(Error::OutOfBoundsMemRead(Region::Mem, addr_usize))
             }
-            RVal::IndexSlice(base, start, len) => {
-                self.eval_index_slice(base, start.as_deref(), len.as_deref())
-            }
+            RVal::IndexSlice(base, slice) => self.eval_index_slice(base, slice.as_ref()),
             RVal::Usize(u) => Ok(Val::Usize(*u)),
             RVal::I32(i) => Ok(Val::I32(*i)),
             RVal::Symbol(s) => Ok(Val::Symbol(s.clone())),
@@ -80,30 +104,20 @@ impl HumanPoweredVm {
         }
     }
 
-    fn eval_index_slice(
-        &self,
-        base: &RVal,
-        start: Option<&RVal>,
-        len: Option<&RVal>,
-    ) -> Result<Val> {
-        let start = self.try_eval_as_slice_bound(start)?;
-        let len = self.try_eval_as_slice_bound(len)?;
+    fn eval_index_slice(&self, base: &RVal, slice: &Slice<RVal>) -> Result<Val> {
+        let Slice { idx, len } = slice
+            .map_int(|rval| self.eval_to_val(rval))?
+            .map_int(|val| val.try_as_any_int())?;
 
-        let base_slice: Slice<usize> = match self.eval_to_val(base)? {
-            Val::CellRef(base) => Slice {
-                region: Region::Mem,
-                start: base.usize(),
-                len: 0,
-            },
-
-            Val::Usize(base) => Slice {
-                region: Region::Code,
-                start: base,
-                len: 0,
-            },
-
-            Val::Slice(slice) => slice,
-
+        let (region, start) = match self.eval_to_val(base)? {
+            Val::CellRef(base) => (Region::Mem, idx + base.i64()),
+            Val::Usize(base) => (Region::Code, idx + base as i64),
+            slice @ Val::Slice { .. } => {
+                // TODO:
+                return Err(Error::UnsliceableValue(
+                    self.mem.display(&slice).to_string(),
+                ));
+            }
             other => {
                 return Err(Error::UnsliceableValue(
                     self.mem.display(&other).to_string(),
@@ -111,7 +125,43 @@ impl HumanPoweredVm {
             }
         };
 
-        Ok(Val::Slice(Slice::normalized_from(base_slice, start, len)?))
+        let start = match start {
+            Idx::Lo => 0,
+            Idx::Hi => match region {
+                Region::Code => self.program.len(),
+                Region::Mem => self.mem.heap.len(),
+            },
+            Idx::Int(idx) => usize::try_from(idx).map_err(|_| Error::BelowBoundsSliceStart(idx))?,
+        };
+
+        let (start, len) = match len {
+            Len::NegInf => (0, start),
+            Len::PosInf => {
+                let max_len = match region {
+                    Region::Code => self.program.len(),
+                    Region::Mem => self.mem.heap.len(),
+                };
+
+                let len_from_start_to_inf = max_len
+                    .checked_sub(start)
+                    .ok_or(Error::OutOfBoundsMemRead(region, start))?;
+
+                (start, len_from_start_to_inf)
+            }
+            Len::Int(len) => {
+                if len < 0 {
+                    // Negative length means slice backwards from the starting point.
+                    let new_start = usize::try_from(start as i64 - len.abs())
+                        .map_err(|_| Error::BelowBoundsSliceStart(start as i64 - len.abs()))?;
+                    (new_start, len.unsigned_abs() as usize)
+                } else {
+                    let len = len as usize;
+                    (start, len)
+                }
+            }
+        };
+
+        Ok(Val::Slice { region, start, len })
     }
 
     fn eval_address_of(&self, inner: &RVal) -> Result<Val> {
@@ -120,20 +170,82 @@ impl HumanPoweredVm {
                 self.eval_to_val(inner.as_ref())?.try_as_cell_ref()?,
             )),
             RVal::Index(base, offset) => {
-                let base = self.eval_to_val(base)?.try_as_cell_ref_like()?;
-                let offset = self.eval_to_val(offset)?.try_as_any_int()?;
-                let cell_ref = (base.i64() + offset) as usize;
-                Ok(Val::CellRef(cell_ref.into()))
-            }
-            RVal::IndexSlice(base, start, _len) => {
-                let start = self.try_eval_as_slice_bound(start.as_deref())?;
-                match self.eval_to_val(base)? {
-                    Val::CellRef(base) => {
-                        let addr = (base.usize() as i64 + start.unwrap_or(0)) as usize;
+                let (region, base) = match self.eval_to_val(base)? {
+                    Val::CellRef(cell_ref) => (Region::Mem, cell_ref.i64()),
+                    Val::Usize(u) => (Region::Code, u as i64),
+                    Val::I32(i) => (Region::Code, i as i64),
+                    slice @ Val::Slice { .. } => {
+                        return Err(Error::BadAddressOfArgument {
+                            reason: "operator `.&` is not implemented for slices yet.",
+                            value: slice.to_string(),
+                        });
+                    }
+                    other => {
+                        return Err(Error::BadAddressOfArgument {
+                            reason: "\
+                                operator `.&` can only be applied to a cell \
+                                reference (like `@123`) or a code address (like \
+                                `123`).\
+                            ",
+                            value: self.mem.display(&other).to_string(),
+                        });
+                    }
+                };
+
+                let offset = offset
+                    .map_int(|rval| self.eval_to_val(rval))?
+                    .map_int(|val| val.try_as_any_int())?;
+
+                match region {
+                    Region::Mem => {
+                        let addr = match offset {
+                            Idx::Lo => usize::try_from(base)
+                                .map_err(|_| Error::BelowBoundsSliceStart(base))?,
+                            Idx::Hi => self.mem.heap.len(),
+                            Idx::Int(idx) => usize::try_from(idx + base)
+                                .map_err(|_| Error::BelowBoundsSliceStart(idx + base))?,
+                        };
                         Ok(Val::CellRef(addr.into()))
                     }
+                    Region::Code => {
+                        let addr = match offset {
+                            Idx::Lo => base as usize,
+                            Idx::Hi => self.program.len(),
+                            Idx::Int(idx) => (idx + base)
+                                .try_into()
+                                .map_err(|_| Error::BelowBoundsSliceStart(idx + base))?,
+                        };
+                        Ok(Val::Usize(addr))
+                    }
+                }
+            }
+            RVal::IndexSlice(base, slice) => {
+                let start = slice
+                    .idx
+                    .map_int(|rval| self.eval_to_val(rval))?
+                    .map_int(|val| val.try_as_any_int())?;
+
+                match self.eval_to_val(base)? {
+                    Val::CellRef(base) => {
+                        // Region::Mem
+                        let addr = match start {
+                            Idx::Lo => base,
+                            Idx::Hi => self.mem.heap.len().into(),
+                            Idx::Int(idx) => usize::try_from(idx + base.i64())
+                                .map_err(|_| Error::BelowBoundsSliceStart(idx + base.i64()))?
+                                .into(),
+                        };
+                        Ok(Val::CellRef(addr))
+                    }
                     Val::Usize(base) => {
-                        let addr = (base as i64 + start.unwrap_or(0)) as usize;
+                        // Region::Code
+                        let addr = match start {
+                            Idx::Lo => base,
+                            Idx::Hi => self.program.len(),
+                            Idx::Int(idx) => (idx + base as i64)
+                                .try_into()
+                                .map_err(|_| Error::BelowBoundsSliceStart(idx + base as i64))?,
+                        };
                         Ok(Val::Usize(addr))
                     }
                     other => Err(Error::UnsliceableValue(
@@ -283,13 +395,5 @@ impl HumanPoweredVm {
         }
 
         Ok(rhs)
-    }
-
-    fn try_eval_as_slice_bound(&self, rval_opt: Option<&RVal>) -> Result<Option<i64>> {
-        let Some(rval) = rval_opt.as_ref() else {
-            return Ok(None);
-        };
-        let val = self.eval_to_val(rval)?;
-        Ok(Some(val.try_as_any_int()?))
     }
 }

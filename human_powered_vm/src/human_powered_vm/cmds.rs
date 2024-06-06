@@ -7,10 +7,7 @@ use crate::human_powered_vm::{
 
 use super::{
     error::Result,
-    vals::{
-        slice::{Region, Slice},
-        val::Val,
-    },
+    vals::{slice::Region, val::Val},
     HumanPoweredVm,
 };
 
@@ -68,8 +65,8 @@ impl HumanPoweredVm {
     pub(super) fn print_rval(&self, rval_name: &str) -> Result<()> {
         let rval = RVal::parser().then_ignore(end()).parse(rval_name)?;
         let val = self.eval_to_val(&rval)?;
-        if let Val::Slice(slice) = val {
-            self.print_slice(slice)?;
+        if let Val::Slice { region, start, len } = val {
+            self.print_slice(region, start, len)?;
         } else {
             println!(
                 "=> {} == {}",
@@ -80,27 +77,27 @@ impl HumanPoweredVm {
         Ok(())
     }
 
-    fn print_slice(&self, slice: Slice<usize>) -> Result<()> {
-        match slice.region {
+    fn print_slice(&self, region: Region, start: usize, len: usize) -> Result<()> {
+        match region {
             Region::Mem => {
                 println!("{:-^20}", "HEAP SEGMENT");
-                for i in slice.start..slice.start + slice.len {
+                for i in start..start + len {
                     let cell = self
                         .mem
                         .heap
                         .get(i)
-                        .ok_or(Error::OutOfBoundsMemRead(slice.region, i))?;
+                        .ok_or(Error::OutOfBoundsMemRead(region, i))?;
                     println!("{i:04}: {}", self.mem.display(cell));
                 }
                 println!("{:-^20}", "");
             }
             Region::Code => {
                 println!("{:-^20}", "CODE SEGMENT");
-                for i in slice.start..slice.start + slice.len {
+                for i in start..start + len {
                     let instr = self
                         .program
                         .get(i)
-                        .ok_or(Error::OutOfBoundsMemRead(slice.region, i))?;
+                        .ok_or(Error::OutOfBoundsMemRead(region, i))?;
                     println!("{i:04}: {}", self.mem.display(instr));
                 }
                 println!("{:-^20}", "");

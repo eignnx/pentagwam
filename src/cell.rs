@@ -57,7 +57,14 @@ impl std::fmt::Display for Cell {
 impl DisplayViaMem for Cell {
     fn display_via_mem(&self, f: &mut fmt::Formatter<'_>, mem: &Mem) -> fmt::Result {
         match self {
-            Cell::Ref(r) => write!(f, "Ref({})", r),
+            Cell::Ref(r) => {
+                let name = mem.human_readable_var_name(*r);
+                if name.starts_with('_') {
+                    write!(f, "Ref({name})")
+                } else {
+                    write!(f, "Ref({name}{r})")
+                }
+            }
             Cell::Rcd(r) => write!(f, "Rcd({})", r),
             Cell::Int(i) => write!(f, "Int({})", i),
             Cell::Sym(s) => write!(f, "Sym({})", mem.display(s)),

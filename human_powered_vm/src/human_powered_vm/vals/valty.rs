@@ -1,7 +1,4 @@
-use super::{
-    slice::{Region, Slice},
-    val::Val,
-};
+use super::{slice::Region, val::Val};
 use crate::human_powered_vm::error::{Error, Result};
 use pentagwam::{
     cell::{Cell, Functor},
@@ -35,11 +32,11 @@ impl ValTy {
                 arity: 0,
             })),
             ValTy::TypeOf(_) => panic!("Can't create default value for `TypeOf(..)`"),
-            ValTy::Slice => Val::Slice(Slice {
+            ValTy::Slice => Val::Slice {
                 region: Region::Mem,
                 start: 0,
                 len: 0,
-            }),
+            },
         }
     }
 }

@@ -1,21 +1,23 @@
-use crate::human_powered_vm::error::{Error, Result};
-
-use crate::human_powered_vm::vals::cellval::CellVal;
-
 use chumsky::prelude::*;
 use derive_more::From;
 use pentagwam::defs::CellRef;
 use pentagwam::mem::{DisplayViaMem, Mem};
 use std::{fmt, str::FromStr};
 
-use super::valty::ValTy;
+use super::{
+    cellval::CellVal,
+    slice::Slice,
+    slice::{Idx, Len},
+    valty::ValTy,
+};
+use crate::human_powered_vm::error::{Error, Result};
 
 #[derive(Debug, From, Clone)]
 pub enum RVal {
     AddressOf(Box<RVal>),
     Deref(Box<RVal>),
-    Index(Box<RVal>, Box<RVal>),
-    IndexSlice(Box<RVal>, Option<Box<RVal>>, Option<Box<RVal>>),
+    Index(Box<RVal>, Box<Idx<RVal>>),
+    IndexSlice(Box<RVal>, Box<Slice<RVal>>),
     #[from]
     CellRef(CellRef),
     Usize(usize),
@@ -105,19 +107,31 @@ impl RVal {
     pub fn parser() -> impl Parser<char, Self, Error = Simple<char>> + Clone {
         recursive::<_, _, _, _, Simple<char>>(|rval| {
             enum PostfixOp {
-                Index(RVal),
-                IndexSlice(Option<RVal>, Option<RVal>),
+                Index(Idx<RVal>),
+                IndexSlice(Slice<RVal>),
                 Deref,
                 AddressOf,
             }
 
-            let index_slice_p = rval
+            let idx_bound_p = choice((
+                just("lo").map(|_| Idx::Lo),
+                just("hi").map(|_| Idx::Hi),
+                rval.clone().map(Idx::Int),
+            ));
+
+            let len_bound_p = choice((
+                just("++").map(|_| Len::PosInf),
+                just("--").map(|_| Len::NegInf),
+                rval.clone().map(Len::Int),
+            ));
+
+            let index_slice_p = idx_bound_p
                 .clone()
-                .or_not()
                 .then_ignore(just(SLICE_IDX_LEN_SEP))
-                .then(rval.clone().or_not())
-                .map(|(start, len)| PostfixOp::IndexSlice(start, len));
-            let index_p = rval.clone().map(PostfixOp::Index);
+                .then(len_bound_p)
+                .map(|(idx, len)| PostfixOp::IndexSlice(Slice { idx, len }));
+
+            let index_p = idx_bound_p.map(PostfixOp::Index);
             let deref_p = just(".*").map(|_| PostfixOp::Deref);
             let addr_of_p = just(".&").map(|_| PostfixOp::AddressOf);
 
@@ -130,13 +144,13 @@ impl RVal {
                     ))
                     .repeated(),
                 )
-                .foldl(|a, b| match b {
-                    PostfixOp::Index(index) => RVal::Index(Box::new(a), Box::new(index)),
-                    PostfixOp::IndexSlice(start, len) => {
-                        RVal::IndexSlice(Box::new(a), start.map(Box::new), len.map(Box::new))
+                .foldl(|acc, new| match new {
+                    PostfixOp::Index(index) => RVal::Index(Box::new(acc), Box::new(index)),
+                    PostfixOp::IndexSlice(Slice { idx, len }) => {
+                        RVal::IndexSlice(Box::new(acc), Box::new(Slice { idx, len }))
                     }
-                    PostfixOp::Deref => RVal::Deref(Box::new(a)),
-                    PostfixOp::AddressOf => RVal::AddressOf(Box::new(a)),
+                    PostfixOp::Deref => RVal::Deref(Box::new(acc)),
+                    PostfixOp::AddressOf => RVal::AddressOf(Box::new(acc)),
                 })
                 .boxed()
         })
@@ -156,19 +170,18 @@ impl DisplayViaMem for RVal {
         match self {
             RVal::AddressOf(inner) => write!(f, "{}.&", mem.display(inner)),
             RVal::Deref(inner) => write!(f, "{}.*", mem.display(inner)),
-            RVal::Index(base, offset) => {
-                write!(f, "{}[{}]", mem.display(base), mem.display(offset))
+            RVal::Index(base, idx) => {
+                write!(f, "{}[{}]", mem.display(base), mem.display(idx))
             }
-            RVal::IndexSlice(base, start, len) => {
-                let start = start
-                    .as_ref()
-                    .map(|x| mem.display(x).to_string())
-                    .unwrap_or_default();
-                let len = len
-                    .as_ref()
-                    .map(|x| mem.display(x).to_string())
-                    .unwrap_or_default();
-                write!(f, "{}[{start}{SLICE_IDX_LEN_SEP}{len}]", mem.display(base))
+            RVal::IndexSlice(base, slice) => {
+                let Slice { idx, len } = slice.as_ref();
+                write!(
+                    f,
+                    "{}[{}{SLICE_IDX_LEN_SEP}{}]",
+                    mem.display(base),
+                    mem.display(idx),
+                    mem.display(len)
+                )
             }
             RVal::CellRef(r) => write!(f, "{r}"),
             RVal::Usize(u) => write!(f, "{u}"),

@@ -1,4 +1,3 @@
-use super::slice::Slice;
 use derive_more::From;
 use pentagwam::{
     cell::{Cell, Functor},
@@ -8,7 +7,7 @@ use pentagwam::{
 use serde::{Deserialize, Serialize};
 use std::fmt;
 
-use super::{rval::SLICE_IDX_LEN_SEP, valty::ValTy};
+use super::{rval::SLICE_IDX_LEN_SEP, slice::Region, valty::ValTy};
 use crate::human_powered_vm::error::{Error, Result};
 
 #[derive(Debug, From, Clone, Serialize, Deserialize)]
@@ -19,7 +18,11 @@ pub enum Val {
     I32(i32),
     Symbol(String),
     Cell(Cell),
-    Slice(Slice<usize>),
+    Slice {
+        region: Region,
+        start: usize,
+        len: usize,
+    },
 }
 
 impl Default for Val {
@@ -36,7 +39,7 @@ impl fmt::Display for Val {
             Val::I32(i) => write!(f, "{i:+}"),
             Val::Symbol(s) => write!(f, ":{s}"),
             Val::Cell(cell) => write!(f, "{cell:?}"),
-            Val::Slice(Slice { region, start, len }) => {
+            Val::Slice { region, start, len } => {
                 write!(f, "{region}[{start}{SLICE_IDX_LEN_SEP}{len}]")
             }
         }
@@ -173,7 +176,7 @@ impl DisplayViaMem for Val {
             Val::Cell(Cell::Rcd(cell_ref)) => write!(f, "Rcd({cell_ref})"),
             Val::Cell(Cell::Lst(cell_ref)) => write!(f, "Lst({cell_ref})"),
             Val::Cell(Cell::Nil) => write!(f, "Nil"),
-            Val::Slice(Slice { region, start, len }) => {
+            Val::Slice { region, start, len } => {
                 write!(f, "{region}[{start}{SLICE_IDX_LEN_SEP}{len}]")
             }
         }
