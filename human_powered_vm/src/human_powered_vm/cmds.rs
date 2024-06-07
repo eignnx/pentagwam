@@ -63,4 +63,67 @@ impl HumanPoweredVm {
         let _val = self.lval_set(&lval, &rval)?;
         Ok(())
     }
+
+    pub(super) fn add_alias(&mut self, new_name: &str, old_name: &str) -> Result<()> {
+        // First check if the old name is for a temporary variable.
+        if let Some(old_name) = old_name.strip_prefix('.') {
+            // Ensure the new name also looks like a temporary variable.
+            let Some(new_name) = new_name.strip_prefix('.') else {
+                bunt::println!(
+                    "{$red}!>{/$} An alias to a temporary variable must begin with a dot."
+                );
+                return Ok(());
+            };
+
+            // Check that the alias doesn't already exist.
+            if let Some(existing_name) = self
+                .tmp_vars
+                .iter()
+                .find_map(|(name, fdata)| fdata.aliases.contains(new_name).then_some(name))
+            {
+                bunt::println!(
+                        "{$red}!>{/$} Alias `{$cyan}.{}{/$}` already exists for temporary variable `{$cyan}.{}{/$}`.",
+                        new_name,
+                        existing_name,
+                    );
+                return Ok(());
+            }
+
+            // Add alias.
+            if let Some(fdata) = self.tmp_vars.get_mut(old_name) {
+                fdata.aliases.insert(new_name.to_string());
+                bunt::println!(
+                    "Aliased temporary variable `{$cyan}.{old_name}{/$}` as `{$cyan}.{new_name}{/$}`.",
+                    old_name = old_name,
+                    new_name = new_name,
+                );
+            } else {
+                bunt::println!(
+                    "{$red}!>{/$} Can't alias `{$cyan+dimmed}.{old_name}{/$}` as `{$cyan+dimmed}.{new_name}{/$}` because \
+                     temporary variable `{$cyan+dimmed}.{old_name}{/$}` doesn't exist.",
+                    old_name = old_name,
+                    new_name = new_name,
+                );
+            }
+        } else if let Some(fdata) = self.fields.get_mut(old_name) {
+            fdata.aliases.insert(new_name.to_string());
+            bunt::println!(
+                "Aliased field `{[cyan]old_name}` as `{[cyan]new_name}`.",
+                old_name = old_name,
+                new_name = new_name,
+            );
+        } else {
+            bunt::println!(
+                "{$red}!>{/$} Can't alias `{[cyan+dimmed]old_name}` as `{[cyan+dimmed]new_name}` \
+                 because field `{[cyan+dimmed]old_name}` doesn't exist.",
+                old_name = old_name,
+                new_name = new_name,
+            );
+        }
+        Ok(())
+    }
+
+    pub(super) fn delete_name(&mut self, name: &str) {
+        todo!()
+    }
 }

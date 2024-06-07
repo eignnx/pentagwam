@@ -178,13 +178,16 @@ impl HumanPoweredVm {
                     if let Some(docs) = instr.doc_comment() {
                         println!("{:-^80}", "INSTRUCTION DOCUMENTATION");
                         println!();
-                        println!("{:^80}", self.mem.display(instr).to_string());
+                        bunt::println!(
+                            "{[bold+intense+italic]:^80}",
+                            self.mem.display(instr).to_string()
+                        );
                         println!();
                         println!("{docs}");
                         println!("{:-<80}", "");
                     } else {
                         bunt::println!(
-                            "{$red}!>{/$} No documentation available for instruction `{[italic+bold]}`",
+                            "{$red}!>{/$} No documentation available for instruction `{[italic+intense+bold]}`",
                             self.mem.display(instr)
                         );
                     }
@@ -255,15 +258,8 @@ impl HumanPoweredVm {
                 *self.instr_ptr_mut() += 1;
                 bunt::println!("{$dimmed}Advanced to next instruction.{/$}");
             }
-            ["del", field_name] => {
-                if self.fields.remove(*field_name).is_some() {
-                    bunt::println!("Deleted field `{[cyan]}`.", field_name);
-                } else {
-                    bunt::println!(
-                        "{$red}!>{/$} Field `{[cyan+dimmed]}` can't be deleted because it doesn't exist.",
-                        field_name
-                    )
-                }
+            ["del", name] => {
+                self.delete_name(name);
             }
             ["push", "term" | "tm", rest @ ..] => {
                 let term_text: String = rest.join(" ");
@@ -287,11 +283,11 @@ impl HumanPoweredVm {
                 );
             }
             [_, "=", tm @ ("term" | "tm"), ..] => {
-                bunt::println!("{$red}!>{/$} Use `<lval> {tm} {$bold+intense+magenta}<-{/$} <rval>` to assign to an l-value.", tm = tm);
+                bunt::println!("{$red}!>{/$} Use `<lval> {tm} {$bold+intense+red}<-{/$} <rval>` to assign to an l-value.", tm = tm);
             }
             [_, "=", ..] => {
                 bunt::println!(
-                    "{$red}!>{/$} Use `<lval> {$bold+intense+magenta}<-{/$} <rval>` to assign to an l-value."
+                    "{$red}!>{/$} Use `<lval> {$bold+intense+red}<-{/$} <rval>` to assign to an l-value."
                 );
             }
             [lval, "<-", "term" | "tm", rest @ ..] => {
@@ -317,64 +313,7 @@ impl HumanPoweredVm {
                 self.assign_to_lval(lval, rhs)?;
             }
             ["alias", new_name, "->", old_name] => {
-                if let Some(old_name) = old_name.strip_prefix('.') {
-                    let Some(new_name) = new_name.strip_prefix('.') else {
-                        println!("!> An alias to a temporary variable must begin with a dot.");
-                        return Ok(ControlFlow::Continue(()));
-                    };
-
-                    if let Some(fdata) = self.tmp_vars.get_mut(old_name) {
-                        fdata.aliases.insert(new_name.to_string());
-                        bunt::println!(
-                            "Aliased `{$cyan}.{old_name}{/$}` as `{$cyan}.{new_name}{/$}`.",
-                            old_name = old_name,
-                            new_name = new_name,
-                        );
-                    } else {
-                        bunt::println!(
-                            "{$red}!>{/$} Can't alias `{$cyan}.{old_name}{/$}` as `{$cyan}.{new_name}{/$}` because \
-                             temporary variable `{$cyan}.{old_name}{/$}` doesn't exist.",
-                            old_name = old_name,
-                            new_name = new_name,
-                        );
-                    }
-                } else if let Some(fdata) = self.fields.get_mut(*old_name) {
-                    fdata.aliases.insert(new_name.to_string());
-                    bunt::println!(
-                        "Aliased `{[cyan]old_name}` as `{[cyan]new_name}`.",
-                        old_name = old_name,
-                        new_name = new_name,
-                    );
-                } else {
-                    bunt::println!(
-                        "{$red}!>{/$} Can't alias `{[cyan]old_name}` as `{[cyan]new_name}` because `{[cyan]old_name}` doesn't exist.",
-                        old_name = old_name,
-                        new_name = new_name,
-                    );
-                }
-            }
-            ["unalias", alias, "->", field] => {
-                if let Some(fdata) = self.fields.get_mut(*field) {
-                    if fdata.aliases.remove(*alias) {
-                        bunt::println!(
-                            "Unaliased `{[cyan]alias}` from `{[cyan]field}`.",
-                            alias = alias,
-                            field = field,
-                        );
-                    } else {
-                        bunt::println!(
-                            "{$red}!>{/$} Can't unalias `{[cyan]alias}` from `{[cyan]field}` because `{[cyan]alias}` isn't an alias of `{[cyan]field}`.",
-                            alias = alias,
-                            field = field,
-                        );
-                    }
-                } else {
-                    bunt::println!(
-                        "{$red}!>{/$} Can't unalias `{[cyan]alias}` from `{[cyan+dimmed]field}` because field `{[cyan+dimmed]field}` doesn't exist.",
-                        alias = alias,
-                        field = field,
-                    );
-                }
+                self.add_alias(new_name, old_name)?;
             }
             [tm @ ("term" | "tm"), rest @ ..] => {
                 // Display a Prolog term
