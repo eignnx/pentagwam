@@ -15,7 +15,7 @@ impl HumanPoweredVm {
         if let Val::Slice { region, start, len } = val {
             self.print_slice(region, start, len)?;
         } else {
-            println!("=> {}", self.mem.display(&val));
+            bunt::println!("=> {[yellow]}", self.mem.display(&val));
         }
         Ok(())
     }
@@ -30,7 +30,11 @@ impl HumanPoweredVm {
                         .heap
                         .get(i)
                         .ok_or(Error::OutOfBoundsMemRead(region, i))?;
-                    println!("{i:04}: {}", self.mem.display(cell));
+                    bunt::println!(
+                        "{$dimmed}{:04}:{/$} {[blue+intense]}",
+                        i,
+                        self.mem.display(cell)
+                    );
                 }
                 println!("{:-^20}", "");
             }
@@ -41,7 +45,11 @@ impl HumanPoweredVm {
                         .program
                         .get(i)
                         .ok_or(Error::OutOfBoundsMemRead(region, i))?;
-                    println!("{i:04}: {}", self.mem.display(instr));
+                    bunt::println!(
+                        "{$dimmed}{:04}:{/$} {[intense]}",
+                        i,
+                        self.mem.display(instr)
+                    );
                 }
                 println!("{:-^20}", "");
             }
@@ -52,12 +60,7 @@ impl HumanPoweredVm {
     pub(super) fn assign_to_lval(&mut self, lval_name: &str, rhs_name: &str) -> Result<()> {
         let lval: LVal = lval_name.parse()?;
         let rval: RVal = rhs_name.parse()?;
-        let val = self.lval_set(&lval, &rval)?;
-        println!(
-            "Wrote `{}` to `{}`.",
-            self.mem.display(&val),
-            self.mem.display(&lval)
-        );
+        let _val = self.lval_set(&lval, &rval)?;
         Ok(())
     }
 }

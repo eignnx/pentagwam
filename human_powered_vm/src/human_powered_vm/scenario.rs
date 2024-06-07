@@ -14,11 +14,11 @@ impl HumanPoweredVm {
     // where
     //     L: Deserialize<'a>,
     pub fn run_scenario(&mut self, scenario: Scenario<Functor<String>>) -> Result<()> {
-        println!("SETUP:");
+        bunt::println!("{$bold+underline}SETUP:{/$}");
 
         for cmd in scenario.setup {
             println!();
-            println!("=> {cmd}");
+            bunt::println!("=> {[italic]}", cmd);
             match self.handle_cmd(&cmd) {
                 Ok(_) => {}
                 Err(e) => {
@@ -29,7 +29,7 @@ impl HumanPoweredVm {
         }
 
         println!();
-        println!("BEGIN SESSION:");
+        bunt::println!("{$bold+underline}BEGIN SESSION:{/$}");
 
         self.load_program(scenario.program)
             .run::<Functor<String>, String>()

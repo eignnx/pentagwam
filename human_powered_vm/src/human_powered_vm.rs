@@ -72,7 +72,11 @@ impl Drop for HumanPoweredVm {
         )
         .unwrap();
         let mut file = std::fs::File::create(SAVE_FILE).unwrap_or_else(|e| {
-            println!("Could not open save file `{SAVE_FILE}` due to error: {e}");
+            bunt::println!(
+                "{$red}Could not open save file `{}` due to error: {}{/$}",
+                SAVE_FILE,
+                e
+            );
             println!("DUMP SAVE DATA:");
             println!("---------------");
             println!("{self_ron}");
@@ -137,22 +141,23 @@ impl HumanPoweredVm {
             self.update_builtin_fields();
             println!();
             if let Some(instr) = self.program.get(self.instr_ptr()) {
-                println!(
-                    "instr #{:04}: {}",
+                bunt::println!(
+                    "{$dimmed}instr #{:04}:{/$} {[bold+italic]}",
                     self.instr_ptr(),
                     self.mem.display(instr)
                 );
-                println!();
             } else {
-                println!("[Instruction pointer beyond end of program]");
-                println!();
+                bunt::println!(
+                    "{$dimmed}instr #{:04}:{/$} {$dimmed+italic}[instr pointer beyond end of program]{/$}",
+                    self.instr_ptr(),
+                );
             }
 
             let cmd = self.prompt("Enter a command");
             match self.handle_cmd(&cmd) {
                 Ok(ControlFlow::Break(())) => break,
                 Ok(ControlFlow::Continue(())) => continue,
-                Err(e) => println!("!> {e}"),
+                Err(e) => bunt::println!("{$red}!>{/$} {}", e),
             }
         }
         Ok(())
@@ -178,8 +183,8 @@ impl HumanPoweredVm {
                         println!("{docs}");
                         println!("{:-<80}", "");
                     } else {
-                        println!(
-                            "!> No documentation available for instruction `{}`",
+                        bunt::println!(
+                            "{$red}!>{/$} No documentation available for instruction `{[italic+bold]}`",
                             self.mem.display(instr)
                         );
                     }
@@ -192,8 +197,9 @@ impl HumanPoweredVm {
             ["fields" | "f"] => {
                 println!("Virtual Machine Fields:");
                 for (field, fdata) in self.fields.iter() {
-                    let def = format!(
-                        "\t{field}: {} = {}",
+                    bunt::print!(
+                        "\t{[cyan]}: {[green]} = {[yellow]}",
+                        field,
                         fdata.ty,
                         self.mem.display(&fdata.value)
                     );
@@ -205,20 +211,21 @@ impl HumanPoweredVm {
                             .collect::<Vec<&str>>()
                             .join(", ");
                         let aliases = format!("aliases: {joined}");
-                        println!("{def:<40}{aliases};");
+                        bunt::println!("\t\t\t\t{[italic]};", aliases);
                     } else {
-                        println!("{def};");
+                        println!();
                     }
                 }
 
                 println!();
                 println!("Temporary Variables:");
                 if self.tmp_vars.is_empty() {
-                    println!("\t<no temporary variables defined>");
+                    bunt::println!("\t{$italic+dimmed}No temporary variables defined.{/$}");
                 } else {
                     for (var_name, fdata) in self.tmp_vars.iter() {
-                        print!(
-                            "\t.{var_name}: {} = {}",
+                        bunt::print!(
+                            "\t.{[cyan]}: {[green]} = {[yellow]}",
+                            var_name,
                             fdata.ty,
                             self.mem.display(&fdata.value)
                         );
@@ -246,13 +253,16 @@ impl HumanPoweredVm {
             }
             ["next" | "n"] => {
                 *self.instr_ptr_mut() += 1;
-                println!("Advanced to next instruction.");
+                bunt::println!("{$dimmed}Advanced to next instruction.{/$}");
             }
             ["del", field_name] => {
                 if self.fields.remove(*field_name).is_some() {
-                    println!("Deleted field `{field_name}`.");
+                    bunt::println!("Deleted field `{[cyan]}`.", field_name);
                 } else {
-                    println!("Field `{field_name}` can't be deleted because it doesn't exist.")
+                    bunt::println!(
+                        "{$red}!>{/$} Field `{[cyan+dimmed]}` can't be deleted because it doesn't exist.",
+                        field_name
+                    )
                 }
             }
             ["push", "term" | "tm", rest @ ..] => {
@@ -260,33 +270,47 @@ impl HumanPoweredVm {
                 let term_parser = pentagwam::syntax::Term::parser();
                 let term = term_parser.parse::<_, &str>(term_text.as_str())?;
                 let cell_ref = term.serialize(&mut self.mem);
-                println!("Serialized Prolog term `{term_text}` into memory at `{cell_ref}`.");
+                bunt::println!(
+                    "Serialized Prolog term `{[yellow]}` into memory at `{[yellow]}`.",
+                    term_text,
+                    cell_ref
+                );
             }
             ["push", rval] => {
                 let rval: RVal = rval.parse()?;
                 let val = self.eval_to_val(&rval)?;
                 let cell = val.try_as_cell()?;
                 self.mem.push(cell);
-                println!("Pushed `{}` onto top of heap.", self.mem.display(&val));
+                bunt::println!(
+                    "Pushed `{[yellow]}` onto top of heap.",
+                    self.mem.display(&val)
+                );
             }
             [_, "=", tm @ ("term" | "tm"), ..] => {
-                println!("!> Use `<lval> {tm} <- <rval>` to assign a value to an l-value.");
+                bunt::println!("{$red}!>{/$} Use `<lval> {tm} {$bold+intense+magenta}<-{/$} <rval>` to assign to an l-value.", tm = tm);
             }
             [_, "=", ..] => {
-                println!("!> Use `<lval> <- <rval>` to assign a value to an l-value.");
+                bunt::println!(
+                    "{$red}!>{/$} Use `<lval> {$bold+intense+magenta}<-{/$} <rval>` to assign to an l-value."
+                );
             }
             [lval, "<-", "term" | "tm", rest @ ..] => {
                 let term_text: String = rest.join(" ");
                 let term_parser = pentagwam::syntax::Term::parser();
                 let term = term_parser.parse::<_, &str>(term_text.as_str())?;
                 let cell_ref = term.serialize(&mut self.mem);
-                println!("Serialized Prolog term `{term_text}` into memory at `{cell_ref}`.");
+                bunt::println!(
+                    "Serialized Prolog term `{[yellow]term_text}` into memory at `{[yellow]cell_ref}`.",
+                    term_text = term_text,
+                    cell_ref = cell_ref
+                );
                 let lval: LVal = lval.parse()?;
                 let rval: RVal = cell_ref.into();
                 self.lval_set(&lval, &rval)?;
-                println!(
-                    "CellRef `{cell_ref}` saved into `{}`.",
-                    self.mem.display(&lval)
+                bunt::println!(
+                    "CellRef `{[yellow]cell_ref}` saved into `{[yellow]}`.",
+                    self.mem.display(&lval),
+                    cell_ref = cell_ref,
                 );
             }
             [lval, "<-", rhs] => {
@@ -301,29 +325,55 @@ impl HumanPoweredVm {
 
                     if let Some(fdata) = self.tmp_vars.get_mut(old_name) {
                         fdata.aliases.insert(new_name.to_string());
-                        println!("Aliased `.{old_name}` as `.{new_name}`.");
+                        bunt::println!(
+                            "Aliased `{$cyan}.{old_name}{/$}` as `{$cyan}.{new_name}{/$}`.",
+                            old_name = old_name,
+                            new_name = new_name,
+                        );
                     } else {
-                        println!(
-                            "!> Can't alias `.{old_name}` as `.{new_name}` because \
-                                  temporary variable `.{old_name}` doesn't exist."
+                        bunt::println!(
+                            "{$red}!>{/$} Can't alias `{$cyan}.{old_name}{/$}` as `{$cyan}.{new_name}{/$}` because \
+                             temporary variable `{$cyan}.{old_name}{/$}` doesn't exist.",
+                            old_name = old_name,
+                            new_name = new_name,
                         );
                     }
                 } else if let Some(fdata) = self.fields.get_mut(*old_name) {
                     fdata.aliases.insert(new_name.to_string());
-                    println!("Aliased `{old_name}` as `{new_name}`.");
+                    bunt::println!(
+                        "Aliased `{[cyan]old_name}` as `{[cyan]new_name}`.",
+                        old_name = old_name,
+                        new_name = new_name,
+                    );
                 } else {
-                    println!("!> Can't alias `{old_name}` as `{new_name}` because `{old_name}` doesn't exist.");
+                    bunt::println!(
+                        "{$red}!>{/$} Can't alias `{[cyan]old_name}` as `{[cyan]new_name}` because `{[cyan]old_name}` doesn't exist.",
+                        old_name = old_name,
+                        new_name = new_name,
+                    );
                 }
             }
             ["unalias", alias, "->", field] => {
                 if let Some(fdata) = self.fields.get_mut(*field) {
                     if fdata.aliases.remove(*alias) {
-                        println!("Unaliased `{alias}` from `{field}`.");
+                        bunt::println!(
+                            "Unaliased `{[cyan]alias}` from `{[cyan]field}`.",
+                            alias = alias,
+                            field = field,
+                        );
                     } else {
-                        println!("!> Can't unalias `{alias}` from `{field}` because `{alias}` isn't an alias of `{field}`.");
+                        bunt::println!(
+                            "{$red}!>{/$} Can't unalias `{[cyan]alias}` from `{[cyan]field}` because `{[cyan]alias}` isn't an alias of `{[cyan]field}`.",
+                            alias = alias,
+                            field = field,
+                        );
                     }
                 } else {
-                    println!("!> Can't unalias `{alias}` from `{field}` because field `{field}` doesn't exist.");
+                    bunt::println!(
+                        "{$red}!>{/$} Can't unalias `{[cyan]alias}` from `{[cyan+dimmed]field}` because field `{[cyan+dimmed]field}` doesn't exist.",
+                        alias = alias,
+                        field = field,
+                    );
                 }
             }
             [tm @ ("term" | "tm"), rest @ ..] => {
@@ -331,7 +381,7 @@ impl HumanPoweredVm {
                 let term_text: String = rest.join(" ");
                 let term_parser = pentagwam::syntax::Term::parser();
                 let term = term_parser.parse::<_, &str>(term_text.as_str())?;
-                println!("=> {tm} {term}");
+                bunt::println!("=> {tm} {[yellow]term}", tm = tm, term = term);
             }
             rval => {
                 let rval = RVal::parser().then_ignore(end()).parse(rval.join(" "))?;

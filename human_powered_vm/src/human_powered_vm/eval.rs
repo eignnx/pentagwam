@@ -328,16 +328,22 @@ impl HumanPoweredVm {
             LVal::Field(field) => {
                 if let Some(fdata) = self.fields.get_mut(field) {
                     fdata.assign_val(rhs.clone())?;
-                    println!("Wrote `{}` to `{field}`.", self.mem.display(&rhs));
+                    bunt::println!(
+                        "Wrote `{[yellow]}` to `{[cyan]field}`.",
+                        self.mem.display(&rhs),
+                        field = field
+                    );
                 } else if let Some((base_name, fdata)) = self
                     .fields
                     .iter_mut()
                     .find(|(_base_name, fdata)| fdata.aliases.contains(field))
                 {
                     fdata.assign_val(rhs.clone())?;
-                    println!(
-                        "Wrote `{}` to `{field}` (alias of `{base_name}`).",
-                        self.mem.display(&rhs)
+                    bunt::println!(
+                        "Wrote `{[yellow]}` to `{[cyan]field}` (alias of `{[cyan]base_name}`).",
+                        self.mem.display(&rhs),
+                        field = field,
+                        base_name = base_name,
                     );
                 } else {
                     // It must be a new field.
@@ -350,8 +356,9 @@ impl HumanPoweredVm {
                             aliases: Default::default(),
                         },
                     );
-                    println!(
-                        "Created new field `self.{field}: {} = {}`.",
+                    bunt::println!(
+                        "Created new field `{[cyan]}: {[green]} = {[yellow]}`.",
+                        field,
                         rhs.ty(),
                         self.mem.display(&rhs)
                     );
@@ -361,18 +368,25 @@ impl HumanPoweredVm {
             // .tmp_var <- <rval>
             // .tmp_var_alias <- <rval>
             LVal::TmpVar(var_name) => {
+                let dot_name = format!(".{var_name}");
                 if let Some(fdata) = self.tmp_vars.get_mut(var_name) {
                     fdata.assign_val(rhs.clone())?;
-                    println!("Wrote `{}` to `.{var_name}`.", self.mem.display(&rhs));
+                    bunt::println!(
+                        "Wrote `{[yellow]}` to `{[cyan]}`.",
+                        self.mem.display(&rhs),
+                        dot_name
+                    );
                 } else if let Some((base_name, fdata)) = self
                     .tmp_vars
                     .iter_mut()
                     .find(|(_base_name, fdata)| fdata.aliases.contains(var_name))
                 {
                     fdata.assign_val(rhs.clone())?;
-                    println!(
-                        "Wrote `{}` to `.{var_name}` (alias of `.{base_name}`).",
-                        self.mem.display(&rhs)
+                    bunt::println!(
+                        "Wrote `{[yellow]}` to `{[cyan]}` (alias of `{[cyan]}`).",
+                        self.mem.display(&rhs),
+                        dot_name,
+                        format!(".{base_name}"),
                     );
                 } else {
                     // It must be a new tmp var.
@@ -385,8 +399,9 @@ impl HumanPoweredVm {
                             aliases: Default::default(),
                         },
                     );
-                    println!(
-                        "Created new temporary variable `.{var_name}: {} = {}`.",
+                    bunt::println!(
+                        "Created new temporary variable `{[cyan]}: {[green]} = {[yellow]}`.",
+                        dot_name,
                         rhs.ty(),
                         self.mem.display(&rhs)
                     );
