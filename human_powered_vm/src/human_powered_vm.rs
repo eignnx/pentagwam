@@ -259,7 +259,7 @@ impl HumanPoweredVm {
                 bunt::println!("{$dimmed}Advanced to next instruction.{/$}");
             }
             ["del", name] => {
-                self.delete_name(name);
+                self.delete_name(name)?;
             }
             ["push", "term" | "tm", rest @ ..] => {
                 let term_text: String = rest.join(" ");
