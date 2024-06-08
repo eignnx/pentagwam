@@ -21,24 +21,25 @@ impl HumanPoweredVm {
             RVal::AddressOf(inner) => self.eval_address_of(inner),
             RVal::Deref(inner) => {
                 let val = self.eval_to_val(inner)?;
-                let cell_ref = val.try_as_cell_ref_like()?;
+                let cell_ref = val.try_as_cell_ref()?;
                 self.mem
                     .try_cell_read(cell_ref)
                     .map(Val::Cell)
                     .ok_or(Error::OutOfBoundsMemRead(Region::Mem, cell_ref.usize()))
             }
             RVal::Index(base, offset) => {
-                let (region, base) = match self.eval_to_val(base)? {
-                    Val::CellRef(cell_ref) => (Region::Mem, cell_ref.i64()),
-                    Val::Usize(u) => (Region::Code, u as i64),
-                    Val::I32(i) => (Region::Code, i as i64),
-                    Val::Slice { region, start, .. } => (region, start as i64),
-                    other => {
-                        return Err(Error::TypeError {
-                            expected: "CellRef or Usize or I32".into(),
-                            received: other.ty(),
-                        })
-                    }
+                let base = self.eval_to_val(base)?;
+                let (region, base) = if let Ok(cell_ref) = base.try_as_cell_ref() {
+                    (Region::Mem, cell_ref.i64())
+                } else if let Ok(i) = base.try_as_any_int() {
+                    (Region::Code, i)
+                } else if let Val::Slice { region, start, .. } = base {
+                    (region, start as i64)
+                } else {
+                    return Err(Error::TypeError {
+                        expected: "CellRef or Usize or I32".into(),
+                        received: base.ty(),
+                    });
                 };
 
                 let addr_i64 = match offset.as_ref() {
@@ -170,26 +171,27 @@ impl HumanPoweredVm {
                 self.eval_to_val(inner.as_ref())?.try_as_cell_ref()?,
             )),
             RVal::Index(base, offset) => {
-                let (region, base) = match self.eval_to_val(base)? {
-                    Val::CellRef(cell_ref) => (Region::Mem, cell_ref.i64()),
-                    Val::Usize(u) => (Region::Code, u as i64),
-                    Val::I32(i) => (Region::Code, i as i64),
-                    slice @ Val::Slice { .. } => {
-                        return Err(Error::BadAddressOfArgument {
-                            reason: "operator `.&` is not implemented for slices yet.",
-                            value: slice.to_string(),
-                        });
-                    }
-                    other => {
-                        return Err(Error::BadAddressOfArgument {
-                            reason: "\
-                                operator `.&` can only be applied to a cell \
-                                reference (like `@123`) or a code address (like \
-                                `123`).\
-                            ",
-                            value: self.mem.display(&other).to_string(),
-                        });
-                    }
+                let base = self.eval_to_val(base)?;
+                let (region, base) = if let Ok(cell_ref) = base.try_as_cell_ref() {
+                    (Region::Mem, cell_ref.i64())
+                } else if let Ok(i) = base.try_as_any_int() {
+                    (Region::Code, i)
+                } else if let slice @ Val::Slice { .. } = base {
+                    // (region, start as i64)
+                    return Err(Error::BadAddressOfArgument {
+                        reason: "operator `.&` is not implemented for slices yet.",
+                        value: slice.to_string(),
+                    });
+                } else {
+                    return Err(Error::BadAddressOfArgument {
+                        reason: "\
+                            operator `.&` can only be applied to a cell \
+                            reference (like `@123`), a code address (like \
+                            `123`), or a Cell containing one of the previous \
+                            two types of values.\
+                        ",
+                        value: self.mem.display(&base).to_string(),
+                    });
                 };
 
                 let offset = offset
@@ -286,8 +288,8 @@ impl HumanPoweredVm {
             CellVal::Int(i) => Cell::Int(self.eval_to_val(i)?.try_as_i32()?),
             CellVal::Sym(s) => {
                 let val = self.eval_to_val(s)?;
-                let text = val.try_as_symbol()?;
-                Cell::Sym(self.intern_sym(text))
+                let text = val.try_as_symbol(&self.mem)?;
+                Cell::Sym(self.intern_sym(&text))
             }
             CellVal::Sig { fname, arity } => Cell::Sig(self.mem.intern_functor(fname, *arity)),
             CellVal::Nil => Cell::Nil,
@@ -301,7 +303,7 @@ impl HumanPoweredVm {
             // Ref(@123).* <- <rval>
             LVal::Deref(inner) => {
                 let inner = self.eval_to_val(inner)?;
-                let r = inner.try_as_cell_ref_like()?;
+                let r = inner.try_as_cell_ref()?;
                 if rhs.ty() != ValTy::Cell {
                     return Err(Error::AssignmentTypeError {
                         expected: "Cell".into(),
@@ -309,17 +311,18 @@ impl HumanPoweredVm {
                     });
                 }
                 self.mem
-                    .try_cell_write(r, rhs.try_as_cell()?)
+                    .try_cell_write(r, rhs.try_as_cell(&self.mem)?)
                     .ok_or(Error::OutOfBoundsMemWrite(Region::Mem, r.usize()))?;
             }
 
             // arr[123] <- <rval>
             LVal::Index(base, offset) => {
+                // Note: using `try_as_cell_ref` because program memory can't be written to (currently?).
                 let base = self.eval_to_val(base)?.try_as_cell_ref()?;
                 let offset = self.eval_to_val(offset)?.try_as_usize()?;
                 let addr = base + offset;
                 self.mem
-                    .try_cell_write(addr, rhs.try_as_cell()?)
+                    .try_cell_write(addr, rhs.try_as_cell(&self.mem)?)
                     .ok_or(Error::OutOfBoundsMemWrite(Region::Mem, addr.usize()))?;
             }
 

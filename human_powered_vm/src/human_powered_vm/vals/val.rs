@@ -5,7 +5,7 @@ use pentagwam::{
     mem::{DisplayViaMem, Mem},
 };
 use serde::{Deserialize, Serialize};
-use std::fmt;
+use std::{borrow::Cow, fmt};
 
 use super::{rval::SLICE_IDX_LEN_SEP, slice::Region, valty::ValTy};
 use crate::human_powered_vm::error::{Error, Result};
@@ -58,17 +58,8 @@ impl Val {
         }
     }
 
+    /// Will convert some `Cell` values to `CelRef`s also.
     pub fn try_as_cell_ref(&self) -> Result<CellRef> {
-        match self {
-            Val::CellRef(cell_ref) => Ok(*cell_ref),
-            other => Err(Error::TypeError {
-                expected: "CellRef".into(),
-                received: other.ty(),
-            }),
-        }
-    }
-
-    pub fn try_as_cell_ref_like(&self) -> Result<CellRef> {
         match self {
             Val::CellRef(cell_ref)
             | Val::Cell(Cell::Ref(cell_ref))
@@ -83,9 +74,10 @@ impl Val {
 
     pub fn try_as_i32(&self) -> Result<i32> {
         match self {
-            Val::I32(i) => Ok(*i),
+            Val::I32(i) | Val::Cell(Cell::Int(i)) => Ok(*i),
+            Val::Usize(u) => Ok(*u as i32),
             other => Err(Error::TypeError {
-                expected: "i32".into(),
+                expected: "I32 or Cell::Int(i)".into(),
                 received: other.ty(),
             }),
         }
@@ -94,26 +86,32 @@ impl Val {
     pub fn try_as_usize(&self) -> Result<usize> {
         match self {
             Val::Usize(u) => Ok(*u),
+            Val::Cell(Cell::Int(i)) if *i >= 0 => Ok(*i as usize),
             other => Err(Error::TypeError {
-                expected: "usize".into(),
+                expected: "Usize or Cell::Int(+i)".into(),
                 received: other.ty(),
             }),
         }
     }
 
-    pub fn try_as_cell(&self) -> Result<Cell> {
+    pub fn try_as_cell(&self, mem: &Mem) -> Result<Cell> {
         match self {
             Val::Cell(cell) => Ok(*cell),
+            Val::Symbol(sym) => Ok(Cell::Sym(mem.intern_sym(sym))),
+            Val::I32(i) => Ok(Cell::Int(*i)),
+            Val::Usize(u) => Ok(Cell::Int(*u as i32)),
+            Val::CellRef(cell_ref) => Ok(Cell::Ref(*cell_ref)),
             other => Err(Error::TypeError {
-                expected: "Cell".into(),
+                expected: "Cell or something convertable to a Cell".into(),
                 received: other.ty(),
             }),
         }
     }
 
-    pub fn try_as_symbol(&self) -> Result<&str> {
+    pub fn try_as_symbol<'a>(&'a self, mem: &'a Mem) -> Result<Cow<'a, str>> {
         match self {
-            Val::Symbol(s) => Ok(s),
+            Val::Symbol(s) => Ok(s.into()),
+            Val::Cell(Cell::Sym(sym)) => Ok(sym.resolve(mem).to_string().into()),
             other => Err(Error::TypeError {
                 expected: "Symbol".into(),
                 received: other.ty(),
@@ -125,8 +123,9 @@ impl Val {
         match self {
             Val::I32(i) => Ok(*i as i64),
             Val::Usize(u) => Ok(*u as i64),
+            Val::Cell(Cell::Int(i)) => Ok(*i as i64),
             other => Err(Error::TypeError {
-                expected: "I32 or Usize".into(),
+                expected: "I32 or Usize or Cell::Int(i)".into(),
                 received: other.ty(),
             }),
         }

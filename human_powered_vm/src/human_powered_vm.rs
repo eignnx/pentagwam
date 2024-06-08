@@ -275,7 +275,7 @@ impl HumanPoweredVm {
             ["push", rval] => {
                 let rval: RVal = rval.parse()?;
                 let val = self.eval_to_val(&rval)?;
-                let cell = val.try_as_cell()?;
+                let cell = val.try_as_cell(&self.mem)?;
                 self.mem.push(cell);
                 bunt::println!(
                     "Pushed `{[yellow]}` onto top of heap.",
