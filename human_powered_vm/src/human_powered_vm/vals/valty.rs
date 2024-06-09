@@ -15,7 +15,6 @@ pub enum ValTy {
     I32,
     Symbol,
     Functor,
-    TypeOf(String),
     Slice,
 }
 
@@ -31,7 +30,6 @@ impl ValTy {
                 sym: Sym::new(0),
                 arity: 0,
             })),
-            ValTy::TypeOf(_) => panic!("Can't create default value for `TypeOf(..)`"),
             ValTy::Slice => Val::Slice {
                 region: Region::Mem,
                 start: 0,
@@ -50,7 +48,6 @@ impl fmt::Display for ValTy {
             ValTy::I32 => write!(f, "I32"),
             ValTy::Symbol => write!(f, "Symbol"),
             ValTy::Functor => write!(f, "Functor"),
-            ValTy::TypeOf(field) => write!(f, "TypeOf({field})"),
             ValTy::Slice => write!(f, "Slice"),
         }
     }
@@ -62,15 +59,12 @@ impl FromStr for ValTy {
     fn from_str(s: &str) -> Result<Self> {
         match s {
             "CellRef" => Ok(ValTy::CellRef),
-            "AnyCellVal" => Ok(ValTy::Cell),
+            "Cell" => Ok(ValTy::Cell),
             "Usize" => Ok(ValTy::Usize),
             "I32" => Ok(ValTy::I32),
             "Symbol" => Ok(ValTy::Symbol),
             "Functor" => Ok(ValTy::Functor),
-            _ if s.starts_with("TypeOf(") && s.ends_with(')') => {
-                let field_name = &s["TypeOf(".len()..s.len() - 1];
-                Ok(ValTy::TypeOf(field_name.to_string()))
-            }
+            "Slice" => Ok(ValTy::Slice),
             _ => Err(Error::ParseTypeError(s.to_string())),
         }
     }

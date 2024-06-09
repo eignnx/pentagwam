@@ -10,6 +10,7 @@ use super::{
     valty::ValTy,
 };
 use crate::human_powered_vm::error::{Error, Result};
+use crate::human_powered_vm::HumanPoweredVm;
 
 #[derive(Debug, From, Clone)]
 pub enum RVal {
@@ -36,20 +37,30 @@ impl Default for RVal {
 pub const SLICE_IDX_LEN_SEP: &str = ";";
 
 impl RVal {
-    pub fn ty(&self) -> ValTy {
-        match self {
+    pub fn ty(&self, hpvm: &HumanPoweredVm) -> Result<ValTy> {
+        Ok(match self {
             RVal::AddressOf(_) => ValTy::CellRef,
+            RVal::Cell(_) => ValTy::Cell,
+            RVal::CellRef(_) => ValTy::CellRef,
             RVal::Deref(_) => ValTy::Cell,
+            RVal::Field(field) => hpvm
+                .fields
+                .get(field)
+                .ok_or(Error::UndefinedField(field.clone()))?
+                .ty
+                .clone(),
+            RVal::I32(_) => ValTy::I32,
             RVal::Index(..) => ValTy::Cell,
             RVal::IndexSlice(..) => ValTy::Slice,
-            RVal::CellRef(_) => ValTy::CellRef,
-            RVal::Usize(_) => ValTy::Usize,
-            RVal::I32(_) => ValTy::I32,
             RVal::Symbol(_) => ValTy::Symbol,
-            RVal::Field(field) => ValTy::TypeOf(field.clone()),
-            RVal::TmpVar(name) => ValTy::TypeOf(name.clone()),
-            RVal::Cell(_) => ValTy::Cell,
-        }
+            RVal::TmpVar(name) => hpvm
+                .tmp_vars
+                .get(name)
+                .ok_or(Error::UndefinedTmpVar(name.clone()))?
+                .ty
+                .clone(),
+            RVal::Usize(_) => ValTy::Usize,
+        })
     }
 
     pub fn atomic_rval_parser<'a>(
