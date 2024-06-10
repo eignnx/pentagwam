@@ -14,23 +14,31 @@ pub enum LVal {
 
 impl LVal {
     pub fn parser() -> impl Parser<char, Self, Error = Simple<char>> {
-        let p_field = text::ident().map(LVal::Field);
+        let p_field = text::ident()
+            .map(LVal::Field)
+            .labelled("field name l-value");
 
-        let p_tmp_var = just('.').ignore_then(text::ident()).map(LVal::TmpVar);
+        let p_tmp_var = just('.')
+            .ignore_then(text::ident())
+            .map(LVal::TmpVar)
+            .labelled("temporary variable l-value");
 
         let p_index_or_deref = RVal::atomic_rval_parser(RVal::parser())
+            .labelled("r-value indexable or dereferencable expression")
             .map(Box::new)
             .then_with(|rval| {
                 let rval_cpy = rval.clone();
                 choice((
                     just(".*").map(move |_| LVal::Deref(rval_cpy.clone())),
-                    RVal::parser()
+                    RVal::atomic_rval_parser(RVal::parser())
+                        .labelled("index expression")
                         .delimited_by(just('['), just(']'))
                         .map(move |offset| LVal::Index(rval.clone(), Box::new(offset))),
                 ))
-            });
+            })
+            .labelled("l-value index or dereference expression");
 
-        choice((p_field, p_tmp_var, p_index_or_deref))
+        choice((p_index_or_deref, p_field, p_tmp_var))
     }
 }
 

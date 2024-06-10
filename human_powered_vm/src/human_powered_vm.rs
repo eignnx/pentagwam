@@ -116,7 +116,7 @@ impl HumanPoweredVm {
             data.value = data
                 .default
                 .clone()
-                .unwrap_or_else(|| data.ty.default_val());
+                .unwrap_or_else(|| data.ty.default_val(&self.mem));
         }
 
         self.setup_default_fields();

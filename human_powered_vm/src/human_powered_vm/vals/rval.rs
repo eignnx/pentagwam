@@ -4,6 +4,7 @@ use pentagwam::defs::CellRef;
 use pentagwam::mem::{DisplayViaMem, Mem};
 use std::{fmt, str::FromStr};
 
+use super::valty::CellTy;
 use super::{
     cellval::CellVal,
     slice::{self, Idx, Len, Slice},
@@ -40,25 +41,33 @@ impl RVal {
     pub fn ty(&self, hpvm: &HumanPoweredVm) -> Result<ValTy> {
         Ok(match self {
             RVal::AddressOf(_) => ValTy::CellRef,
-            RVal::Cell(_) => ValTy::Cell,
+            RVal::Cell(cell) => match cell.as_ref() {
+                CellVal::Sig { .. } => ValTy::Cell(Some(CellTy::Sig)),
+                CellVal::Int(_) => ValTy::Cell(Some(CellTy::Int)),
+                CellVal::Sym(_) => ValTy::Cell(Some(CellTy::Sym)),
+                CellVal::Ref(_) => ValTy::Cell(Some(CellTy::Ref)),
+                CellVal::Rcd(_) => ValTy::Cell(Some(CellTy::Rcd)),
+                CellVal::Lst(_) => ValTy::Cell(Some(CellTy::Lst)),
+                CellVal::Nil => ValTy::Cell(Some(CellTy::Nil)),
+            },
+            RVal::Deref(_) => ValTy::Cell(None),
+            RVal::Index(..) => ValTy::Cell(None),
             RVal::CellRef(_) => ValTy::CellRef,
-            RVal::Deref(_) => ValTy::Cell,
-            RVal::Field(field) => hpvm
-                .fields
-                .get(field)
-                .ok_or(Error::UndefinedField(field.clone()))?
-                .ty
-                .clone(),
+            RVal::Field(field) => {
+                hpvm.fields
+                    .get(field)
+                    .ok_or(Error::UndefinedField(field.clone()))?
+                    .ty
+            }
             RVal::I32(_) => ValTy::I32,
-            RVal::Index(..) => ValTy::Cell,
             RVal::IndexSlice(..) => ValTy::Slice,
             RVal::Symbol(_) => ValTy::Symbol,
-            RVal::TmpVar(name) => hpvm
-                .tmp_vars
-                .get(name)
-                .ok_or(Error::UndefinedTmpVar(name.clone()))?
-                .ty
-                .clone(),
+            RVal::TmpVar(name) => {
+                hpvm.tmp_vars
+                    .get(name)
+                    .ok_or(Error::UndefinedTmpVar(name.clone()))?
+                    .ty
+            }
             RVal::Usize(_) => ValTy::Usize,
         })
     }
@@ -66,16 +75,21 @@ impl RVal {
     pub fn atomic_rval_parser<'a>(
         rval: impl Parser<char, RVal, Error = Simple<char>> + 'a + Clone,
     ) -> impl Parser<char, Self, Error = Simple<char>> + 'a {
-        let cell_lit = CellVal::parser(rval).map(Box::new).map(RVal::Cell);
+        let cell_lit = CellVal::parser(rval)
+            .map(Box::new)
+            .map(RVal::Cell)
+            .labelled("cell literal");
 
         let cell_ref_lit = just("@")
             .ignore_then(text::digits(10))
             .try_map(|s: String, span| s.parse::<usize>().map_err(|e| Simple::custom(span, e)))
-            .map(|u| RVal::CellRef(CellRef::new(u)));
+            .map(|u| RVal::CellRef(CellRef::new(u)))
+            .labelled("cell ref literal");
 
         let usize_lit = text::digits(10)
             .try_map(|s: String, span| s.parse::<usize>().map_err(|e| Simple::custom(span, e)))
-            .map(RVal::Usize);
+            .map(RVal::Usize)
+            .labelled("usize literal");
 
         let i32_lit = one_of(['-', '+'])
             .then_with(|sign| {
@@ -86,7 +100,8 @@ impl RVal {
                         .map_err(|e| Simple::custom(span, e))
                 })
             })
-            .map(RVal::I32);
+            .map(RVal::I32)
+            .labelled("i32 literal");
 
         let sym_lit = just(":")
             .ignore_then(choice((
@@ -97,11 +112,15 @@ impl RVal {
                 text::ident::<_, Simple<char>>(),
             )))
             .map(String::from)
-            .map(RVal::Symbol);
+            .map(RVal::Symbol)
+            .labelled("symbol literal");
 
-        let tmp_var = just(".").ignore_then(text::ident()).map(RVal::TmpVar);
+        let tmp_var = just(".")
+            .ignore_then(text::ident())
+            .map(RVal::TmpVar)
+            .labelled("temporary variable");
 
-        let field = text::ident().map(RVal::Field);
+        let field = text::ident().map(RVal::Field).labelled("field name");
 
         choice((
             cell_lit,

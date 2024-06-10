@@ -7,7 +7,11 @@ use pentagwam::{
 use serde::{Deserialize, Serialize};
 use std::{borrow::Cow, fmt};
 
-use super::{rval::SLICE_IDX_LEN_SEP, slice::Region, valty::ValTy};
+use super::{
+    rval::SLICE_IDX_LEN_SEP,
+    slice::Region,
+    valty::{CellTy, ValTy},
+};
 use crate::human_powered_vm::error::{Error, Result};
 
 #[derive(Debug, From, Clone, Serialize, Deserialize)]
@@ -53,7 +57,15 @@ impl Val {
             Val::Usize(..) => ValTy::Usize,
             Val::I32(..) => ValTy::I32,
             Val::Symbol(..) => ValTy::Symbol,
-            Val::Cell(..) => ValTy::Cell,
+            Val::Cell(cell) => match cell {
+                Cell::Ref(..) => ValTy::Cell(Some(CellTy::Ref)),
+                Cell::Rcd(..) => ValTy::Cell(Some(CellTy::Rcd)),
+                Cell::Int(..) => ValTy::Cell(Some(CellTy::Int)),
+                Cell::Sym(..) => ValTy::Cell(Some(CellTy::Sym)),
+                Cell::Sig(..) => ValTy::Cell(Some(CellTy::Sig)),
+                Cell::Lst(..) => ValTy::Cell(Some(CellTy::Lst)),
+                Cell::Nil => ValTy::Cell(Some(CellTy::Nil)),
+            },
             Val::Slice { .. } => ValTy::Slice,
         }
     }
@@ -178,6 +190,144 @@ impl DisplayViaMem for Val {
             Val::Slice { region, start, len } => {
                 write!(f, "{region}[{start}{SLICE_IDX_LEN_SEP}{len}]")
             }
+        }
+    }
+}
+
+impl Val {
+    pub fn try_convert(&self, ty: ValTy, mem: &Mem) -> Result<Self> {
+        match self {
+            Val::CellRef(r) | Val::Cell(Cell::Ref(r)) => match ty {
+                ValTy::CellRef => Ok(Val::CellRef(*r)),
+                ValTy::Cell(None) | ValTy::Cell(Some(CellTy::Ref)) => Ok(Val::Cell(Cell::Ref(*r))),
+                ValTy::Cell(Some(CellTy::Int))
+                | ValTy::Cell(Some(CellTy::Nil))
+                | ValTy::Cell(Some(CellTy::Lst))
+                | ValTy::Cell(Some(CellTy::Rcd))
+                | ValTy::Cell(Some(CellTy::Sig))
+                | ValTy::Cell(Some(CellTy::Sym))
+                | ValTy::Usize
+                | ValTy::I32
+                | ValTy::Symbol
+                | ValTy::Functor
+                | ValTy::Slice => Err(Error::TypeError {
+                    expected: ty.to_string(),
+                    received: self.ty(),
+                }),
+            },
+            Val::Usize(u) => match ty {
+                ValTy::Usize => Ok(self.clone()),
+                ValTy::I32 => Ok(Val::I32(*u as i32)),
+                ValTy::Cell(None) | ValTy::Cell(Some(CellTy::Int)) => {
+                    Ok(Val::Cell(Cell::Int(*u as i32)))
+                }
+                ValTy::Cell(Some(CellTy::Nil))
+                | ValTy::Cell(Some(CellTy::Lst))
+                | ValTy::Cell(Some(CellTy::Ref))
+                | ValTy::Cell(Some(CellTy::Rcd))
+                | ValTy::Cell(Some(CellTy::Sig))
+                | ValTy::Cell(Some(CellTy::Sym))
+                | ValTy::CellRef
+                | ValTy::Symbol
+                | ValTy::Functor
+                | ValTy::Slice => Err(Error::TypeError {
+                    expected: ty.to_string(),
+                    received: self.ty(),
+                }),
+            },
+            Val::I32(i) => match ty {
+                ValTy::I32 => Ok(self.clone()),
+                ValTy::Cell(None) | ValTy::Cell(Some(CellTy::Int)) => Ok(Val::Cell(Cell::Int(*i))),
+                ValTy::Usize
+                | ValTy::Cell(Some(CellTy::Nil))
+                | ValTy::Cell(Some(CellTy::Lst))
+                | ValTy::Cell(Some(CellTy::Ref))
+                | ValTy::Cell(Some(CellTy::Rcd))
+                | ValTy::Cell(Some(CellTy::Sig))
+                | ValTy::Cell(Some(CellTy::Sym))
+                | ValTy::CellRef
+                | ValTy::Symbol
+                | ValTy::Functor
+                | ValTy::Slice => Err(Error::TypeError {
+                    expected: ty.to_string(),
+                    received: self.ty(),
+                }),
+            },
+            Val::Symbol(s) => match ty {
+                ValTy::Symbol => Ok(self.clone()),
+                ValTy::Cell(None) | ValTy::Cell(Some(CellTy::Sym)) => {
+                    Ok(Val::Cell(Cell::Sym(mem.intern_sym(s))))
+                }
+                ValTy::Cell(Some(CellTy::Int))
+                | ValTy::Cell(Some(CellTy::Nil))
+                | ValTy::Cell(Some(CellTy::Lst))
+                | ValTy::Cell(Some(CellTy::Ref))
+                | ValTy::Cell(Some(CellTy::Rcd))
+                | ValTy::Cell(Some(CellTy::Sig))
+                | ValTy::CellRef
+                | ValTy::Usize
+                | ValTy::I32
+                | ValTy::Functor
+                | ValTy::Slice => Err(Error::TypeError {
+                    expected: ty.to_string(),
+                    received: self.ty(),
+                }),
+            },
+            Val::Cell(Cell::Nil) => match ty {
+                ValTy::Cell(None) | ValTy::Cell(Some(CellTy::Nil)) => Ok(self.clone()),
+                _ => Err(Error::TypeError {
+                    expected: ty.to_string(),
+                    received: self.ty(),
+                }),
+            },
+            Val::Cell(Cell::Int(i)) => match ty {
+                ValTy::Cell(None) | ValTy::Cell(Some(CellTy::Int)) => Ok(self.clone()),
+                ValTy::I32 => Ok(Val::I32(*i)),
+                _ => Err(Error::TypeError {
+                    expected: ty.to_string(),
+                    received: self.ty(),
+                }),
+            },
+            Val::Cell(Cell::Lst(r)) => match ty {
+                ValTy::Cell(None) | ValTy::Cell(Some(CellTy::Lst)) => Ok(self.clone()),
+                ValTy::CellRef => Ok(Val::CellRef(*r)),
+                _ => Err(Error::TypeError {
+                    expected: ty.to_string(),
+                    received: self.ty(),
+                }),
+            },
+            Val::Cell(Cell::Rcd(r)) => match ty {
+                ValTy::Cell(None) | ValTy::Cell(Some(CellTy::Rcd)) => Ok(self.clone()),
+                ValTy::CellRef => Ok(Val::CellRef(*r)),
+                _ => Err(Error::TypeError {
+                    expected: ty.to_string(),
+                    received: self.ty(),
+                }),
+            },
+            Val::Cell(Cell::Sig(_)) => match ty {
+                ValTy::Cell(None) | ValTy::Cell(Some(CellTy::Sig)) | ValTy::Functor => {
+                    Ok(self.clone())
+                }
+                _ => Err(Error::TypeError {
+                    expected: ty.to_string(),
+                    received: self.ty(),
+                }),
+            },
+            Val::Cell(Cell::Sym(s)) => match ty {
+                ValTy::Cell(None) | ValTy::Cell(Some(CellTy::Sym)) => Ok(self.clone()),
+                ValTy::Symbol => Ok(Val::Symbol(s.resolve(mem).to_string())),
+                _ => Err(Error::TypeError {
+                    expected: ty.to_string(),
+                    received: self.ty(),
+                }),
+            },
+            Val::Slice { .. } => match ty {
+                ValTy::Slice => Ok(self.clone()),
+                _ => Err(Error::TypeError {
+                    expected: ty.to_string(),
+                    received: self.ty(),
+                }),
+            },
         }
     }
 }

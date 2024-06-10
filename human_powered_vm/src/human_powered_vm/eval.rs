@@ -304,15 +304,17 @@ impl HumanPoweredVm {
             LVal::Deref(inner) => {
                 let inner = self.eval_to_val(inner)?;
                 let r = inner.try_as_cell_ref()?;
-                if rhs.ty() != ValTy::Cell {
-                    return Err(Error::AssignmentTypeError {
-                        expected: "Cell".into(),
-                        received: rhs.ty(),
-                    });
-                }
+                let Val::Cell(rhs) = rhs.try_convert(ValTy::Cell(None), &self.mem)? else {
+                    unreachable!()
+                };
                 self.mem
-                    .try_cell_write(r, rhs.try_as_cell(&self.mem)?)
+                    .try_cell_write(r, rhs)
                     .ok_or(Error::OutOfBoundsMemWrite(Region::Mem, r.usize()))?;
+                bunt::println!(
+                    "Wrote `{[yellow]}` to `{[cyan]}`.",
+                    self.mem.display(&rhs),
+                    r
+                );
             }
 
             // arr[123] <- <rval>
@@ -321,9 +323,17 @@ impl HumanPoweredVm {
                 let base = self.eval_to_val(base)?.try_as_cell_ref()?;
                 let offset = self.eval_to_val(offset)?.try_as_usize()?;
                 let addr = base + offset;
+                let Val::Cell(rhs) = rhs.try_convert(ValTy::Cell(None), &self.mem)? else {
+                    unreachable!()
+                };
                 self.mem
-                    .try_cell_write(addr, rhs.try_as_cell(&self.mem)?)
+                    .try_cell_write(addr, rhs)
                     .ok_or(Error::OutOfBoundsMemWrite(Region::Mem, addr.usize()))?;
+                bunt::println!(
+                    "Wrote `{[yellow]}` to `{[cyan]}`.",
+                    self.mem.display(&rhs),
+                    addr
+                );
             }
 
             // some_field <- <rval>

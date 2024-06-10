@@ -58,8 +58,9 @@ impl HumanPoweredVm {
     }
 
     pub(super) fn assign_to_lval(&mut self, lval_name: &str, rhs_name: &str) -> Result<()> {
-        let lval: LVal = lval_name.parse()?;
-        let rval: RVal = rhs_name.parse()?;
+        use chumsky::prelude::*;
+        let lval = LVal::parser().then_ignore(end()).parse(lval_name)?;
+        let rval = RVal::parser().then_ignore(end()).parse(rhs_name)?;
         let _val = self.lval_set(&lval, &rval)?;
         Ok(())
     }
