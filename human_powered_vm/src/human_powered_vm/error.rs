@@ -1,10 +1,7 @@
+use derive_more::From;
 use std::fmt;
 
-use vals::slice::Region;
-
-use self::vals::valty::ValTy;
-
-use super::*;
+use crate::vals::{slice::Region, valty::ValTy};
 
 #[derive(Debug, From)]
 pub enum Error {

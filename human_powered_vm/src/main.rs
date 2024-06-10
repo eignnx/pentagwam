@@ -4,6 +4,7 @@ use human_powered_vm::{error::Result, scenario::Scenario, HumanPoweredVm};
 use pentagwam::cell::Functor;
 
 pub mod human_powered_vm;
+pub mod vals;
 
 fn main() -> Result<()> {
     let mut vm = HumanPoweredVm::new()?;

@@ -1,13 +1,5 @@
-use crate::human_powered_vm::{
-    error::Error,
-    vals::{lval::LVal, rval::RVal},
-};
-
-use super::{
-    error::Result,
-    vals::{slice::Region, val::Val},
-    HumanPoweredVm,
-};
+use crate::human_powered_vm::{error::Error, error::Result, HumanPoweredVm};
+use crate::vals::{lval::LVal, rval::RVal, slice::Region, val::Val};
 
 impl HumanPoweredVm {
     pub(super) fn print_rval(&self, rval: &RVal) -> Result<()> {

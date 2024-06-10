@@ -3,9 +3,9 @@
 
 use pentagwam::defs::CellRef;
 
-use super::{
+use crate::{
+    human_powered_vm::{FieldData, HumanPoweredVm},
     vals::{val::Val, valty::ValTy},
-    FieldData, HumanPoweredVm,
 };
 
 impl HumanPoweredVm {

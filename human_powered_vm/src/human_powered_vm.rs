@@ -1,5 +1,4 @@
 use chumsky::{primitive::end, Parser};
-use derive_more::From;
 use pentagwam::{
     bc::instr::Instr,
     cell::Functor,
@@ -13,11 +12,14 @@ use std::{
     io::{Read, Write},
     ops::ControlFlow,
 };
-use vals::slice::{Idx, Len, Slice};
 
-use crate::human_powered_vm::{
-    error::{Error, Result},
-    vals::{lval::LVal, rval::RVal, val::Val, valty::ValTy},
+use crate::human_powered_vm::error::{Error, Result};
+use crate::vals::{
+    lval::LVal,
+    rval::RVal,
+    slice::{Idx, Len, Slice},
+    val::Val,
+    valty::ValTy,
 };
 
 pub mod builtin_fields;
@@ -25,26 +27,25 @@ pub mod cmds;
 pub mod error;
 pub mod eval;
 pub mod scenario;
-pub mod vals;
 
 #[derive(Debug, Serialize, Deserialize, Default)]
 pub struct HumanPoweredVm {
-    fields: BTreeMap<String, FieldData>,
+    pub fields: BTreeMap<String, FieldData>,
     #[serde(skip)]
-    tmp_vars: BTreeMap<String, FieldData>,
+    pub tmp_vars: BTreeMap<String, FieldData>,
     #[serde(skip)]
-    mem: Mem,
+    pub mem: Mem,
     #[serde(skip)]
-    program: Vec<Instr<Functor<String>, String>>,
+    pub program: Vec<Instr<Functor<String>, String>>,
 }
 
 #[derive(Debug, Serialize, Deserialize)]
 pub struct FieldData {
     #[serde(skip)]
-    value: Val,
-    ty: ValTy,
-    default: Option<Val>,
-    aliases: BTreeSet<String>,
+    pub value: Val,
+    pub ty: ValTy,
+    pub default: Option<Val>,
+    pub aliases: BTreeSet<String>,
 }
 
 impl FieldData {

@@ -1,18 +1,16 @@
 use pentagwam::{cell::Cell, defs::CellRef};
 
-use crate::human_powered_vm::FieldData;
-
 use super::{
     error::{Error, Result},
-    vals::{
-        cellval::CellVal,
-        lval::LVal,
-        rval::RVal,
-        slice::{Idx, Len, Region, Slice},
-        val::Val,
-        valty::ValTy,
-    },
-    HumanPoweredVm,
+    FieldData, HumanPoweredVm,
+};
+use crate::vals::{
+    cellval::CellVal,
+    lval::LVal,
+    rval::RVal,
+    slice::{Idx, Len, Region, Slice},
+    val::Val,
+    valty::ValTy,
 };
 
 impl HumanPoweredVm {
