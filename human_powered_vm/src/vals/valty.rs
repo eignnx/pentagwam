@@ -42,8 +42,11 @@ impl ValTy {
             },
             ValTy::Usize => Val::Usize(0),
             ValTy::I32 => Val::I32(0),
-            ValTy::Symbol => Val::Symbol("".to_string()),
-            ValTy::Functor => Val::Cell(Cell::Sig(mem.intern_functor("<default>", 0))),
+            ValTy::Symbol => Val::Symbol("<default>".to_string()),
+            ValTy::Functor => Val::Functor {
+                sym: "<default>".to_string(),
+                arity: 0,
+            },
             ValTy::Slice => Val::Slice {
                 region: Region::Mem,
                 start: 0,

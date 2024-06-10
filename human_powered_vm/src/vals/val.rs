@@ -27,6 +27,10 @@ pub enum Val {
         start: usize,
         len: usize,
     },
+    Functor {
+        sym: String,
+        arity: u8,
+    },
 }
 
 impl Default for Val {
@@ -46,6 +50,7 @@ impl fmt::Display for Val {
             Val::Slice { region, start, len } => {
                 write!(f, "{region}[{start}{SLICE_IDX_LEN_SEP}{len}]")
             }
+            Val::Functor { sym, arity } => write!(f, "{sym}/{arity}"),
         }
     }
 }
@@ -67,6 +72,7 @@ impl Val {
                 Cell::Nil => ValTy::Cell(Some(CellTy::Nil)),
             },
             Val::Slice { .. } => ValTy::Slice,
+            Val::Functor { .. } => ValTy::Functor,
         }
     }
 
@@ -110,6 +116,13 @@ impl Val {
     pub fn try_as_any_int(&self, mem: &Mem) -> Result<i64> {
         self.try_convert(ValTy::I32, mem).map(|val| match val {
             Val::I32(i) => i as i64,
+            _ => unreachable!(),
+        })
+    }
+
+    pub(crate) fn try_as_functor(&self, mem: &Mem) -> Result<(String, u8)> {
+        self.try_convert(ValTy::Functor, mem).map(|val| match val {
+            Val::Functor { sym, arity } => (sym, arity),
             _ => unreachable!(),
         })
     }
@@ -161,6 +174,7 @@ impl DisplayViaMem for Val {
             Val::Slice { region, start, len } => {
                 write!(f, "{region}[{start}{SLICE_IDX_LEN_SEP}{len}]")
             }
+            Val::Functor { sym, arity } => write!(f, "{sym}/{arity}"),
         }
     }
 }
@@ -312,6 +326,20 @@ impl Val {
             },
             Val::Slice { .. } => match ty {
                 ValTy::Slice => Ok(self.clone()),
+                _ => Err(Error::TypeError {
+                    expected: ty.to_string(),
+                    received: self.ty(),
+                    expr: self.to_string(),
+                }),
+            },
+            Val::Functor { sym, arity } => match ty {
+                ValTy::Functor => Ok(self.clone()),
+                ValTy::Cell(None) | ValTy::Cell(Some(CellTy::Sig)) => {
+                    Ok(Val::Cell(Cell::Sig(Functor {
+                        sym: mem.intern_sym(sym),
+                        arity: *arity,
+                    })))
+                }
                 _ => Err(Error::TypeError {
                     expected: ty.to_string(),
                     received: self.ty(),

@@ -28,6 +28,7 @@ pub enum RVal {
     TmpVar(String),
     InstrParam(usize),
     Cell(Box<CellVal>),
+    Functor(Box<RVal>, Box<RVal>),
 }
 
 impl Default for RVal {
@@ -61,6 +62,7 @@ impl RVal {
                     .ty
             }
             RVal::I32(_) => ValTy::I32,
+            RVal::Usize(_) => ValTy::Usize,
             RVal::IndexSlice(..) => ValTy::Slice,
             RVal::Symbol(_) => ValTy::Symbol,
             RVal::TmpVar(name) => {
@@ -73,14 +75,14 @@ impl RVal {
                 let param = hpvm.instr_param(*idx)?;
                 param.ty(hpvm)?
             }
-            RVal::Usize(_) => ValTy::Usize,
+            RVal::Functor(_, _) => ValTy::Functor,
         })
     }
 
     pub fn atomic_rval_parser<'a>(
         rval: impl Parser<char, RVal, Error = Simple<char>> + 'a + Clone,
     ) -> impl Parser<char, Self, Error = Simple<char>> + 'a {
-        let cell_lit = CellVal::parser(rval)
+        let cell_lit = CellVal::parser(rval.clone())
             .map(Box::new)
             .map(RVal::Cell)
             .labelled("cell literal");
@@ -152,6 +154,7 @@ impl RVal {
                 IndexSlice(Slice<RVal>),
                 Deref,
                 AddressOf,
+                Functor(Box<RVal>),
             }
 
             let idx_bound_p = choice((
@@ -176,12 +179,18 @@ impl RVal {
             let deref_p = just(".*").map(|_| PostfixOp::Deref);
             let addr_of_p = just(".&").map(|_| PostfixOp::AddressOf);
 
+            let functor_p = just("/")
+                .ignore_then(rval.clone())
+                .map(|arity| PostfixOp::Functor(Box::new(arity)))
+                .labelled("functor literal");
+
             Self::atomic_rval_parser(rval.clone())
                 .then(
                     choice((
                         choice((index_slice_p, index_p)).delimited_by(just("["), just("]")),
                         deref_p,
                         addr_of_p,
+                        functor_p,
                     ))
                     .repeated(),
                 )
@@ -192,6 +201,7 @@ impl RVal {
                     }
                     PostfixOp::Deref => RVal::Deref(Box::new(acc)),
                     PostfixOp::AddressOf => RVal::AddressOf(Box::new(acc)),
+                    PostfixOp::Functor(arity) => RVal::Functor(Box::new(acc), arity),
                 })
                 .boxed()
         })
@@ -240,6 +250,7 @@ impl DisplayViaMem for RVal {
             RVal::TmpVar(name) => write!(f, ".{name}"),
             RVal::InstrParam(idx) => write!(f, "${idx}"),
             RVal::Cell(cell) => write!(f, "{}", mem.display(cell)),
+            RVal::Functor(sym, arity) => write!(f, "({}/{})", mem.display(sym), mem.display(arity)),
         }
     }
 }

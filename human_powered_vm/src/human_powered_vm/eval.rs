@@ -105,6 +105,13 @@ impl HumanPoweredVm {
                 let param = self.instr_param(*idx)?;
                 self.eval_to_val(&param)
             }
+            RVal::Functor(fname, arity) => Ok(Val::Functor {
+                sym: self
+                    .eval_to_val(fname)?
+                    .try_as_symbol(&self.mem)?
+                    .to_string(),
+                arity: self.eval_to_val(arity)?.try_as_usize(&self.mem)? as u8,
+            }),
         }
     }
 
@@ -269,12 +276,14 @@ impl HumanPoweredVm {
                          nowhere.",
                 value: self.mem.display(inner).to_string(),
             }),
-            RVal::Usize(_) | RVal::I32(_) | RVal::Symbol(_) | RVal::Cell(_) => {
-                Err(Error::BadAddressOfArgument {
-                    reason: "Can't take the address of a temporary value.",
-                    value: self.mem.display(inner).to_string(),
-                })
-            }
+            RVal::Usize(_)
+            | RVal::I32(_)
+            | RVal::Symbol(_)
+            | RVal::Cell(_)
+            | RVal::Functor(_, _) => Err(Error::BadAddressOfArgument {
+                reason: "Can't take the address of a temporary value.",
+                value: self.mem.display(inner).to_string(),
+            }),
             RVal::Field(_) | RVal::TmpVar(_) | RVal::InstrParam(_) => {
                 Err(Error::BadAddressOfArgument {
                     reason: "Can't take the address of a field, temp var, or \
@@ -297,7 +306,11 @@ impl HumanPoweredVm {
                 let text = val.try_as_symbol(&self.mem)?;
                 Cell::Sym(self.intern_sym(&text))
             }
-            CellVal::Sig { fname, arity } => Cell::Sig(self.mem.intern_functor(fname, *arity)),
+            CellVal::Sig(functor) => {
+                let val = self.eval_to_val(functor)?;
+                let (fname, arity) = val.try_as_functor(&self.mem)?;
+                Cell::Sig(self.mem.intern_functor(fname, arity))
+            }
             CellVal::Nil => Cell::Nil,
         })
     }
