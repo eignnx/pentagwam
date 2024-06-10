@@ -25,43 +25,7 @@ impl HumanPoweredVm {
                     .map(Val::Cell)
                     .ok_or(Error::OutOfBoundsMemRead(Region::Mem, cell_ref.usize()))
             }
-            RVal::Index(base, offset) => {
-                let base = self.eval_to_val(base)?;
-                let (region, base) = if let Ok(cell_ref) = base.try_as_cell_ref(&self.mem) {
-                    (Region::Mem, cell_ref.i64())
-                } else if let Ok(i) = base.try_as_any_int(&self.mem) {
-                    (Region::Code, i)
-                } else if let Val::Slice { region, start, .. } = base {
-                    (region, start as i64)
-                } else {
-                    return Err(Error::TypeError {
-                        expected: "CellRef or Usize or I32".into(),
-                        received: base.ty(),
-                        expr: self.mem.display(&base).to_string(),
-                    });
-                };
-
-                let addr_i64 = match offset.as_ref() {
-                    Idx::Lo => base,
-                    Idx::Hi => match region {
-                        Region::Code => self.program.len() as i64,
-                        Region::Mem => self.mem.heap.len() as i64,
-                    },
-                    Idx::Int(idx_rval) => {
-                        let val = self.eval_to_val(idx_rval)?;
-                        let int = val.try_as_any_int(&self.mem)?;
-                        int + base
-                    }
-                };
-
-                let addr_usize = usize::try_from(addr_i64)
-                    .map_err(|_| Error::BelowBoundsSliceStart(addr_i64))?;
-
-                self.mem
-                    .try_cell_read(addr_usize)
-                    .map(Val::Cell)
-                    .ok_or(Error::OutOfBoundsMemRead(Region::Mem, addr_usize))
-            }
+            RVal::Index(base, offset) => self.eval_index(base, offset),
             RVal::IndexSlice(base, slice) => self.eval_index_slice(base, slice.as_ref()),
             RVal::Usize(u) => Ok(Val::Usize(*u)),
             RVal::I32(i) => Ok(Val::I32(*i)),
@@ -113,6 +77,45 @@ impl HumanPoweredVm {
                 arity: self.eval_to_val(arity)?.try_as_usize(&self.mem)? as u8,
             }),
         }
+    }
+
+    fn eval_index(&self, base: &RVal, offset: &Idx<RVal>) -> std::prelude::v1::Result<Val, Error> {
+        let base = self.eval_to_val(base)?;
+
+        let (region, base) = if let Ok(cell_ref) = base.try_as_cell_ref(&self.mem) {
+            (Region::Mem, cell_ref.i64())
+        } else if let Ok(i) = base.try_as_any_int(&self.mem) {
+            (Region::Code, i)
+        } else if let Val::Slice { region, start, .. } = base {
+            (region, start as i64)
+        } else {
+            return Err(Error::TypeError {
+                expected: "CellRef or Usize or I32".into(),
+                received: base.ty(),
+                expr: self.mem.display(&base).to_string(),
+            });
+        };
+
+        let addr_i64 = match offset {
+            Idx::Lo => base,
+            Idx::Hi => match region {
+                Region::Code => self.program.len() as i64,
+                Region::Mem => self.mem.heap.len() as i64,
+            },
+            Idx::Int(idx_rval) => {
+                let val = self.eval_to_val(idx_rval)?;
+                let int = val.try_as_any_int(&self.mem)?;
+                int + base
+            }
+        };
+
+        let addr_usize =
+            usize::try_from(addr_i64).map_err(|_| Error::BelowBoundsSliceStart(addr_i64))?;
+
+        self.mem
+            .try_cell_read(addr_usize)
+            .map(Val::Cell)
+            .ok_or(Error::OutOfBoundsMemRead(Region::Mem, addr_usize))
     }
 
     fn eval_index_slice(&self, base: &RVal, slice: &Slice<RVal>) -> Result<Val> {
