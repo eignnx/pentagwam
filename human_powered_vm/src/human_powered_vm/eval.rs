@@ -364,7 +364,7 @@ impl HumanPoweredVm {
             // some_field_alias <- <rval>
             LVal::Field(field) => {
                 if let Some(fdata) = self.fields.get_mut(field) {
-                    fdata.assign_val(rhs.clone())?;
+                    fdata.assign_val(rhs.clone(), &self.mem)?;
                     bunt::println!(
                         "Wrote `{[yellow]}` to `{[cyan]field}`.",
                         self.mem.display(&rhs),
@@ -375,7 +375,7 @@ impl HumanPoweredVm {
                     .iter_mut()
                     .find(|(_base_name, fdata)| fdata.aliases.contains(field))
                 {
-                    fdata.assign_val(rhs.clone())?;
+                    fdata.assign_val(rhs.clone(), &self.mem)?;
                     bunt::println!(
                         "Wrote `{[yellow]}` to `{[cyan]field}` (alias of `{[cyan]base_name}`).",
                         self.mem.display(&rhs),
@@ -407,7 +407,7 @@ impl HumanPoweredVm {
             LVal::TmpVar(var_name) => {
                 let dot_name = format!(".{var_name}");
                 if let Some(fdata) = self.tmp_vars.get_mut(var_name) {
-                    fdata.assign_val(rhs.clone())?;
+                    fdata.assign_val(rhs.clone(), &self.mem)?;
                     bunt::println!(
                         "Wrote `{[yellow]}` to `{[cyan]}`.",
                         self.mem.display(&rhs),
@@ -418,7 +418,7 @@ impl HumanPoweredVm {
                     .iter_mut()
                     .find(|(_base_name, fdata)| fdata.aliases.contains(var_name))
                 {
-                    fdata.assign_val(rhs.clone())?;
+                    fdata.assign_val(rhs.clone(), &self.mem)?;
                     bunt::println!(
                         "Wrote `{[yellow]}` to `{[cyan]}` (alias of `{[cyan]}`).",
                         self.mem.display(&rhs),

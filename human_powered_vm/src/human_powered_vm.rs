@@ -49,14 +49,13 @@ pub struct FieldData {
 }
 
 impl FieldData {
-    fn assign_val(&mut self, rhs: Val) -> Result<()> {
-        if self.ty != rhs.ty() {
-            return Err(Error::AssignmentTypeError {
+    fn assign_val(&mut self, rhs: Val, mem: &Mem) -> Result<()> {
+        self.value = rhs
+            .try_convert(self.ty, mem)
+            .map_err(|_| Error::AssignmentTypeError {
                 expected: self.ty.to_string(),
                 received: rhs.ty(),
-            });
-        }
-        self.value = rhs;
+            })?;
         Ok(())
     }
 }
