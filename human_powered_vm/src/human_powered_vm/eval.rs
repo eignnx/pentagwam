@@ -1,4 +1,4 @@
-use pentagwam::cell::Cell;
+use pentagwam::{cell::Cell, defs::CellRef};
 
 use crate::human_powered_vm::FieldData;
 
@@ -21,7 +21,7 @@ impl HumanPoweredVm {
             RVal::AddressOf(inner) => self.eval_address_of(inner),
             RVal::Deref(inner) => {
                 let val = self.eval_to_val(inner)?;
-                let cell_ref = val.try_as_cell_ref()?;
+                let cell_ref = val.try_as_cell_ref(&self.mem)?;
                 self.mem
                     .try_cell_read(cell_ref)
                     .map(Val::Cell)
@@ -29,9 +29,9 @@ impl HumanPoweredVm {
             }
             RVal::Index(base, offset) => {
                 let base = self.eval_to_val(base)?;
-                let (region, base) = if let Ok(cell_ref) = base.try_as_cell_ref() {
+                let (region, base) = if let Ok(cell_ref) = base.try_as_cell_ref(&self.mem) {
                     (Region::Mem, cell_ref.i64())
-                } else if let Ok(i) = base.try_as_any_int() {
+                } else if let Ok(i) = base.try_as_any_int(&self.mem) {
                     (Region::Code, i)
                 } else if let Val::Slice { region, start, .. } = base {
                     (region, start as i64)
@@ -39,6 +39,7 @@ impl HumanPoweredVm {
                     return Err(Error::TypeError {
                         expected: "CellRef or Usize or I32".into(),
                         received: base.ty(),
+                        expr: self.mem.display(&base).to_string(),
                     });
                 };
 
@@ -50,7 +51,7 @@ impl HumanPoweredVm {
                     },
                     Idx::Int(idx_rval) => {
                         let val = self.eval_to_val(idx_rval)?;
-                        let int = val.try_as_any_int()?;
+                        let int = val.try_as_any_int(&self.mem)?;
                         int + base
                     }
                 };
@@ -108,23 +109,23 @@ impl HumanPoweredVm {
     fn eval_index_slice(&self, base: &RVal, slice: &Slice<RVal>) -> Result<Val> {
         let Slice { idx, len } = slice
             .map_int(|rval| self.eval_to_val(rval))?
-            .map_int(|val| val.try_as_any_int())?;
+            .map_int(|val| val.try_as_any_int(&self.mem))?;
 
-        let (region, start) = match self.eval_to_val(base)? {
-            Val::CellRef(base) => (Region::Mem, idx + base.i64()),
-            Val::Usize(base) => (Region::Code, idx + base as i64),
-            slice @ Val::Slice { .. } => {
+        let base_val = self.eval_to_val(base)?;
+
+        let (region, start) =
+            if let Ok(Val::CellRef(base)) = base_val.try_convert(ValTy::CellRef, &self.mem) {
+                (Region::Mem, idx + base.i64())
+            } else if let Ok(Val::Usize(base)) = base_val.try_convert(ValTy::Usize, &self.mem) {
+                (Region::Code, idx + base as i64)
+            } else if let slice @ Val::Slice { .. } = base_val {
                 // TODO:
                 return Err(Error::UnsliceableValue(
                     self.mem.display(&slice).to_string(),
                 ));
-            }
-            other => {
-                return Err(Error::UnsliceableValue(
-                    self.mem.display(&other).to_string(),
-                ))
-            }
-        };
+            } else {
+                return Err(Error::UnsliceableValue(self.mem.display(&base).to_string()));
+            };
 
         let start = match start {
             Idx::Lo => 0,
@@ -168,13 +169,14 @@ impl HumanPoweredVm {
     fn eval_address_of(&self, inner: &RVal) -> Result<Val> {
         match inner {
             RVal::Deref(inner) => Ok(Val::CellRef(
-                self.eval_to_val(inner.as_ref())?.try_as_cell_ref()?,
+                self.eval_to_val(inner.as_ref())?
+                    .try_as_cell_ref(&self.mem)?,
             )),
             RVal::Index(base, offset) => {
                 let base = self.eval_to_val(base)?;
-                let (region, base) = if let Ok(cell_ref) = base.try_as_cell_ref() {
+                let (region, base) = if let Ok(cell_ref) = base.try_as_cell_ref(&self.mem) {
                     (Region::Mem, cell_ref.i64())
-                } else if let Ok(i) = base.try_as_any_int() {
+                } else if let Ok(i) = base.try_as_any_int(&self.mem) {
                     (Region::Code, i)
                 } else if let slice @ Val::Slice { .. } = base {
                     // (region, start as i64)
@@ -196,7 +198,7 @@ impl HumanPoweredVm {
 
                 let offset = offset
                     .map_int(|rval| self.eval_to_val(rval))?
-                    .map_int(|val| val.try_as_any_int())?;
+                    .map_int(|val| val.try_as_any_int(&self.mem))?;
 
                 match region {
                     Region::Mem => {
@@ -225,7 +227,7 @@ impl HumanPoweredVm {
                 let start = slice
                     .idx
                     .map_int(|rval| self.eval_to_val(rval))?
-                    .map_int(|val| val.try_as_any_int())?;
+                    .map_int(|val| val.try_as_any_int(&self.mem))?;
 
                 match self.eval_to_val(base)? {
                     Val::CellRef(base) => {
@@ -282,10 +284,10 @@ impl HumanPoweredVm {
 
     pub(super) fn eval_cellval_to_cell(&self, cell: &CellVal) -> Result<Cell> {
         Ok(match cell {
-            CellVal::Ref(r) => Cell::Ref(self.eval_to_val(r)?.try_as_cell_ref()?),
-            CellVal::Rcd(r) => Cell::Rcd(self.eval_to_val(r)?.try_as_cell_ref()?),
-            CellVal::Lst(r) => Cell::Lst(self.eval_to_val(r)?.try_as_cell_ref()?),
-            CellVal::Int(i) => Cell::Int(self.eval_to_val(i)?.try_as_i32()?),
+            CellVal::Ref(r) => Cell::Ref(self.eval_to_val(r)?.try_as_cell_ref(&self.mem)?),
+            CellVal::Rcd(r) => Cell::Rcd(self.eval_to_val(r)?.try_as_cell_ref(&self.mem)?),
+            CellVal::Lst(r) => Cell::Lst(self.eval_to_val(r)?.try_as_cell_ref(&self.mem)?),
+            CellVal::Int(i) => Cell::Int(self.eval_to_val(i)?.try_as_i32(&self.mem)?),
             CellVal::Sym(s) => {
                 let val = self.eval_to_val(s)?;
                 let text = val.try_as_symbol(&self.mem)?;
@@ -303,7 +305,7 @@ impl HumanPoweredVm {
             // Ref(@123).* <- <rval>
             LVal::Deref(inner) => {
                 let inner = self.eval_to_val(inner)?;
-                let r = inner.try_as_cell_ref()?;
+                let r = inner.try_as_cell_ref(&self.mem)?;
                 let Val::Cell(rhs) = rhs.try_convert(ValTy::Cell(None), &self.mem)? else {
                     unreachable!()
                 };
@@ -320,9 +322,11 @@ impl HumanPoweredVm {
             // arr[123] <- <rval>
             LVal::Index(base, offset) => {
                 // Note: using `try_as_cell_ref` because program memory can't be written to (currently?).
-                let base = self.eval_to_val(base)?.try_as_cell_ref()?;
-                let offset = self.eval_to_val(offset)?.try_as_usize()?;
-                let addr = base + offset;
+                let base = self.eval_to_val(base)?.try_as_cell_ref(&self.mem)?;
+                let offset = self.eval_to_val(offset)?.try_as_any_int(&self.mem)?;
+                let addr: CellRef = usize::try_from(base.i64() + offset)
+                    .map_err(|_| Error::BelowBoundsSliceStart(base.i64() + offset))?
+                    .into();
                 let Val::Cell(rhs) = rhs.try_convert(ValTy::Cell(None), &self.mem)? else {
                     unreachable!()
                 };

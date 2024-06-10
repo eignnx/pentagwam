@@ -71,76 +71,47 @@ impl Val {
     }
 
     /// Will convert some `Cell` values to `CelRef`s also.
-    pub fn try_as_cell_ref(&self) -> Result<CellRef> {
-        match self {
-            Val::CellRef(cell_ref)
-            | Val::Cell(Cell::Ref(cell_ref))
-            | Val::Cell(Cell::Rcd(cell_ref))
-            | Val::Cell(Cell::Lst(cell_ref)) => Ok(*cell_ref),
-            other => Err(Error::TypeError {
-                expected: "CellRef, Ref, Rcd, or Lst".into(),
-                received: other.ty(),
-            }),
-        }
+    pub fn try_as_cell_ref(&self, mem: &Mem) -> Result<CellRef> {
+        self.try_convert(ValTy::CellRef, mem).map(|val| match val {
+            Val::CellRef(cell_ref) => cell_ref,
+            _ => unreachable!(),
+        })
     }
 
-    pub fn try_as_i32(&self) -> Result<i32> {
-        match self {
-            Val::I32(i) | Val::Cell(Cell::Int(i)) => Ok(*i),
-            Val::Usize(u) => Ok(*u as i32),
-            other => Err(Error::TypeError {
-                expected: "I32 or Cell::Int(i)".into(),
-                received: other.ty(),
-            }),
-        }
+    pub fn try_as_i32(&self, mem: &Mem) -> Result<i32> {
+        self.try_convert(ValTy::I32, mem).map(|val| match val {
+            Val::I32(i) => i,
+            _ => unreachable!(),
+        })
     }
 
-    pub fn try_as_usize(&self) -> Result<usize> {
-        match self {
-            Val::Usize(u) => Ok(*u),
-            Val::Cell(Cell::Int(i)) if *i >= 0 => Ok(*i as usize),
-            other => Err(Error::TypeError {
-                expected: "Usize or Cell::Int(+i)".into(),
-                received: other.ty(),
-            }),
-        }
+    pub fn try_as_usize(&self, mem: &Mem) -> Result<usize> {
+        self.try_convert(ValTy::Usize, mem).map(|val| match val {
+            Val::Usize(u) => u,
+            _ => unreachable!(),
+        })
     }
 
     pub fn try_as_cell(&self, mem: &Mem) -> Result<Cell> {
-        match self {
-            Val::Cell(cell) => Ok(*cell),
-            Val::Symbol(sym) => Ok(Cell::Sym(mem.intern_sym(sym))),
-            Val::I32(i) => Ok(Cell::Int(*i)),
-            Val::Usize(u) => Ok(Cell::Int(*u as i32)),
-            Val::CellRef(cell_ref) => Ok(Cell::Ref(*cell_ref)),
-            other => Err(Error::TypeError {
-                expected: "Cell or something convertable to a Cell".into(),
-                received: other.ty(),
-            }),
-        }
+        self.try_convert(ValTy::Cell(None), mem)
+            .map(|val| match val {
+                Val::Cell(cell) => cell,
+                _ => unreachable!(),
+            })
     }
 
     pub fn try_as_symbol<'a>(&'a self, mem: &'a Mem) -> Result<Cow<'a, str>> {
-        match self {
-            Val::Symbol(s) => Ok(s.into()),
-            Val::Cell(Cell::Sym(sym)) => Ok(sym.resolve(mem).to_string().into()),
-            other => Err(Error::TypeError {
-                expected: "Symbol".into(),
-                received: other.ty(),
-            }),
-        }
+        self.try_convert(ValTy::Symbol, mem).map(|val| match val {
+            Val::Symbol(s) => Cow::Owned(s),
+            _ => unreachable!(),
+        })
     }
 
-    pub fn try_as_any_int(&self) -> Result<i64> {
-        match self {
-            Val::I32(i) => Ok(*i as i64),
-            Val::Usize(u) => Ok(*u as i64),
-            Val::Cell(Cell::Int(i)) => Ok(*i as i64),
-            other => Err(Error::TypeError {
-                expected: "I32 or Usize or Cell::Int(i)".into(),
-                received: other.ty(),
-            }),
-        }
+    pub fn try_as_any_int(&self, mem: &Mem) -> Result<i64> {
+        self.try_convert(ValTy::I32, mem).map(|val| match val {
+            Val::I32(i) => i as i64,
+            _ => unreachable!(),
+        })
     }
 }
 
@@ -195,11 +166,19 @@ impl DisplayViaMem for Val {
 }
 
 impl Val {
+    /// Knows about the HPVM's (rather relaxed) type system, and it's (rather
+    /// forgiving) conversion rules.
+    ///
+    /// Prefer to use this method (or even better: the more specific ones like
+    /// `Val::try_as_*`) instead of matching directly on the `Val` enum.
     pub fn try_convert(&self, ty: ValTy, mem: &Mem) -> Result<Self> {
         match self {
             Val::CellRef(r) | Val::Cell(Cell::Ref(r)) => match ty {
                 ValTy::CellRef => Ok(Val::CellRef(*r)),
                 ValTy::Cell(None) | ValTy::Cell(Some(CellTy::Ref)) => Ok(Val::Cell(Cell::Ref(*r))),
+                // NOTE: These variants are spelled out so that adding a new
+                // variant results in a compilation error until this code has
+                // been reviewed and updated.
                 ValTy::Cell(Some(CellTy::Int))
                 | ValTy::Cell(Some(CellTy::Nil))
                 | ValTy::Cell(Some(CellTy::Lst))
@@ -213,6 +192,7 @@ impl Val {
                 | ValTy::Slice => Err(Error::TypeError {
                     expected: ty.to_string(),
                     received: self.ty(),
+                    expr: self.to_string(),
                 }),
             },
             Val::Usize(u) => match ty {
@@ -233,6 +213,7 @@ impl Val {
                 | ValTy::Slice => Err(Error::TypeError {
                     expected: ty.to_string(),
                     received: self.ty(),
+                    expr: self.to_string(),
                 }),
             },
             Val::I32(i) => match ty {
@@ -251,6 +232,7 @@ impl Val {
                 | ValTy::Slice => Err(Error::TypeError {
                     expected: ty.to_string(),
                     received: self.ty(),
+                    expr: self.to_string(),
                 }),
             },
             Val::Symbol(s) => match ty {
@@ -271,6 +253,7 @@ impl Val {
                 | ValTy::Slice => Err(Error::TypeError {
                     expected: ty.to_string(),
                     received: self.ty(),
+                    expr: self.to_string(),
                 }),
             },
             Val::Cell(Cell::Nil) => match ty {
@@ -278,6 +261,7 @@ impl Val {
                 _ => Err(Error::TypeError {
                     expected: ty.to_string(),
                     received: self.ty(),
+                    expr: self.to_string(),
                 }),
             },
             Val::Cell(Cell::Int(i)) => match ty {
@@ -286,6 +270,7 @@ impl Val {
                 _ => Err(Error::TypeError {
                     expected: ty.to_string(),
                     received: self.ty(),
+                    expr: self.to_string(),
                 }),
             },
             Val::Cell(Cell::Lst(r)) => match ty {
@@ -294,6 +279,7 @@ impl Val {
                 _ => Err(Error::TypeError {
                     expected: ty.to_string(),
                     received: self.ty(),
+                    expr: self.to_string(),
                 }),
             },
             Val::Cell(Cell::Rcd(r)) => match ty {
@@ -302,6 +288,7 @@ impl Val {
                 _ => Err(Error::TypeError {
                     expected: ty.to_string(),
                     received: self.ty(),
+                    expr: self.to_string(),
                 }),
             },
             Val::Cell(Cell::Sig(_)) => match ty {
@@ -311,6 +298,7 @@ impl Val {
                 _ => Err(Error::TypeError {
                     expected: ty.to_string(),
                     received: self.ty(),
+                    expr: self.to_string(),
                 }),
             },
             Val::Cell(Cell::Sym(s)) => match ty {
@@ -319,6 +307,7 @@ impl Val {
                 _ => Err(Error::TypeError {
                     expected: ty.to_string(),
                     received: self.ty(),
+                    expr: self.to_string(),
                 }),
             },
             Val::Slice { .. } => match ty {
@@ -326,6 +315,7 @@ impl Val {
                 _ => Err(Error::TypeError {
                     expected: ty.to_string(),
                     received: self.ty(),
+                    expr: self.to_string(),
                 }),
             },
         }

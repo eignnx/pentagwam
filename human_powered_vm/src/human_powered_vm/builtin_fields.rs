@@ -42,7 +42,7 @@ impl HumanPoweredVm {
             .get("instr_ptr")
             .expect("builtin `instr_ptr` field not found")
             .value
-            .try_as_usize()
+            .try_as_usize(&self.mem)
             .expect("builtin `instr_ptr` field is not a usize")
     }
 
@@ -63,7 +63,7 @@ impl HumanPoweredVm {
             .get("heap_ptr")
             .expect("builtin `heap_ptr` field not found")
             .value
-            .try_as_cell_ref()
+            .try_as_cell_ref(&self.mem)
             .expect("builtin `heap_ptr` field is not a CellRef")
     }
 

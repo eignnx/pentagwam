@@ -28,6 +28,7 @@ pub enum Error {
     TypeError {
         expected: String,
         received: ValTy,
+        expr: String,
     },
     ParseTypeError(String),
     #[from]
@@ -54,11 +55,11 @@ impl fmt::Display for Error {
             Error::UnknownLVal(lval) => write!(f, "Unknown l-value `{lval}`."),
             Error::AssignmentTypeError { expected, received } => write!(
                 f,
-                "Assignment type error: Could not assign value of type `{received:?}` to a location which holds `{expected}`s."
+                "Assignment type error: Could not assign value of type `{received}` to a location which holds `{expected}`s."
             ),
-            Error::TypeError { expected, received } => write!(
+            Error::TypeError { expected, received, expr } => write!(
                 f,
-                "Type error: Expected `{expected}`, but received `{received:?}`."
+                "Type error: Expected `{expected}`, but received `{expr}: {received}`."
             ),
             Error::IoError(e) => write!(f, "I/O error: {e}"),
             Error::ParseIntError(e) => write!(f, "Parse int error: {e}"),
@@ -104,7 +105,7 @@ impl fmt::Display for Error {
             }
             Error::BelowBoundsSliceStart(below) => writeln!(
                 f,
-                "Attempt to slice at index less than absolute address 0: {below}"
+                "Attempt to index at index less than absolute address 0: {below}",
             ),
         }
     }
