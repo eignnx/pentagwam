@@ -37,7 +37,7 @@ impl HumanPoweredVm {
         *self.heap_ptr_mut() = (self.mem.heap.len() - 1).into();
     }
 
-    pub(super) fn instr_ptr(&self) -> usize {
+    pub fn instr_ptr(&self) -> usize {
         self.fields
             .get("instr_ptr")
             .expect("builtin `instr_ptr` field not found")
@@ -46,7 +46,7 @@ impl HumanPoweredVm {
             .expect("builtin `instr_ptr` field is not a usize")
     }
 
-    pub(super) fn instr_ptr_mut(&mut self) -> &mut usize {
+    pub fn instr_ptr_mut(&mut self) -> &mut usize {
         let Val::Usize(ref mut u) = self
             .fields
             .get_mut("instr_ptr")

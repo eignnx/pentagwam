@@ -101,6 +101,10 @@ impl HumanPoweredVm {
                         .ok_or_else(|| Error::UndefinedTmpVar(name.to_string()))
                 }
             }
+            RVal::InstrParam(idx) => {
+                let param = self.instr_param(*idx)?;
+                self.eval_to_val(&param)
+            }
         }
     }
 
@@ -271,12 +275,14 @@ impl HumanPoweredVm {
                     value: self.mem.display(inner).to_string(),
                 })
             }
-            RVal::Field(_) | RVal::TmpVar(_) => Err(Error::BadAddressOfArgument {
-                reason: "Can't take the address of a field or temp var \
-                                 because those won't exist at runtime (they're \
-                                 just for the human-powered VM).",
-                value: self.mem.display(inner).to_string(),
-            }),
+            RVal::Field(_) | RVal::TmpVar(_) | RVal::InstrParam(_) => {
+                Err(Error::BadAddressOfArgument {
+                    reason: "Can't take the address of a field, temp var, or \
+                            instruction parameter because those won't exist at \
+                            runtime (they're just for the human-powered VM).",
+                    value: self.mem.display(inner).to_string(),
+                })
+            }
         }
     }
 

@@ -43,6 +43,11 @@ pub enum Error {
         slice_len: i64,
     },
     BelowBoundsSliceStart(i64),
+    InstrPtrOutOfBounds(usize),
+    UndefinedInstrArg {
+        param_idx: usize,
+        param_count: usize,
+    },
 }
 
 impl fmt::Display for Error {
@@ -103,6 +108,21 @@ impl fmt::Display for Error {
             Error::BelowBoundsSliceStart(below) => writeln!(
                 f,
                 "Attempt to index at index less than absolute address 0: {below}",
+            ),
+            Error::InstrPtrOutOfBounds(ip) => writeln!(
+                f,
+                "Instruction pointer out of bounds: {ip}",
+            ),
+            Error::UndefinedInstrArg { param_idx: 0, param_count } => writeln!(
+                f,
+                "Zero (0) is not a valid instruction parameter index. For the \
+                current instruction, any integers in the range `1..={param_count}` \
+                are valid parameter indices.",
+            ),
+            Error::UndefinedInstrArg { param_idx, param_count } => writeln!(
+                f,
+                "Invalid instruction parameter index `${param_idx}`. The current \
+                instruction has only {param_count} parameters.",
             ),
         }
     }

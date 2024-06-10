@@ -26,6 +26,7 @@ pub enum RVal {
     Symbol(String),
     Field(String),
     TmpVar(String),
+    InstrParam(usize),
     Cell(Box<CellVal>),
 }
 
@@ -67,6 +68,10 @@ impl RVal {
                     .get(name)
                     .ok_or(Error::UndefinedTmpVar(name.clone()))?
                     .ty
+            }
+            RVal::InstrParam(idx) => {
+                let param = hpvm.instr_param(*idx)?;
+                param.ty(hpvm)?
             }
             RVal::Usize(_) => ValTy::Usize,
         })
@@ -122,6 +127,12 @@ impl RVal {
 
         let field = text::ident().map(RVal::Field).labelled("field name");
 
+        let instr_param = just("$")
+            .ignore_then(text::digits(10))
+            .try_map(|s: String, span| s.parse::<usize>().map_err(|e| Simple::custom(span, e)))
+            .map(RVal::InstrParam)
+            .labelled("instruction parameter");
+
         choice((
             cell_lit,
             cell_ref_lit,
@@ -130,6 +141,7 @@ impl RVal {
             sym_lit,
             tmp_var,
             field,
+            instr_param,
         ))
     }
 
@@ -226,6 +238,7 @@ impl DisplayViaMem for RVal {
             }
             RVal::Field(field) => write!(f, "{field}"),
             RVal::TmpVar(name) => write!(f, ".{name}"),
+            RVal::InstrParam(idx) => write!(f, "${idx}"),
             RVal::Cell(cell) => write!(f, "{}", mem.display(cell)),
         }
     }
