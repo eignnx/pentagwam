@@ -26,6 +26,7 @@ pub mod builtin_fields;
 pub mod cmds;
 pub mod error;
 pub mod eval;
+pub mod help;
 pub mod scenario;
 
 #[derive(Debug, Serialize, Deserialize, Default)]
@@ -328,66 +329,6 @@ impl HumanPoweredVm {
             }
         }
         Ok(ControlFlow::Continue(()))
-    }
-
-    fn print_help(&self) {
-        println!("{:-^80}", "COMMAND DOCUMENTATION");
-        println!();
-        println!("Commands:");
-        println!("  <lval> <- <rval> - Assign the value of <rval> to <lval>.");
-        println!("  <lval> <- tm <tm>");
-        println!("                   - Assign the Prolog term <tm> to <lval>.");
-        println!("  <rval>           - Print the value of <rval>.");
-        println!("  tm <rval>        - Print the Prolog term residing in memory");
-        println!("                     at CellRef <rval>.");
-        println!("  alias <new> -> <old>");
-        println!("                   - Alias <old> as <new>.");
-        println!("  unalias <alias> -> <field>");
-        println!("                   - Unalias <alias> from <field>.");
-        println!("  del <field>      - Delete the field <field>.");
-        println!("  push <rval>      - Push the value of <rval> onto the heap.");
-        println!("  fields | f       - Print all the data fields of the VM.");
-        println!("  list | l [from|next|prev|last|first <n>]");
-        println!("                   - Print a program listing.");
-        println!("  docs | doc | d   - Print the documentation for the current");
-        println!("                     instruction.");
-        println!("  next | n         - Advance to the next instruction.");
-        println!("  quit | q         - Quit the program, saving any field declarations.");
-        println!("  help | h | ?     - Print this help message.");
-        println!();
-        println!("  Expression Language:");
-        println!();
-        println!("  L-Values: values which represent a memory location which");
-        println!("            can be assigned to.");
-        println!("    <lval> ::= <field> | <tmp_var> | <rval>.* | <rval>[<rval>]");
-        println!();
-        println!("  R-Values: expressions which can evaluate to a base value (<val>).");
-        println!("    <rval> ::= <usize> | <i32> | <sym> | <tmp_var> | <field>");
-        println!("             | <rva>.& | <rval>.*");
-        println!("             | <rval>[<rval>] | <rval>[<idx>;<len>]");
-        println!("             | <cell_ref> | <cell>");
-        println!();
-        println!("    <val>   ::= <usize> | <i32> | <sym> | <cell_ref> | <cell>");
-        println!("    <usize> ::= 0 | 1 | 2 | …");
-        println!("    <i32>   ::= +0 | -0 | +1 | -1 | +2 | -2 | …");
-        println!();
-        println!("    <idx>   ::= <rval>");
-        println!("              | - | +              // lowest/highest+1 index");
-        println!("    <len>   ::= <rval>");
-        println!("              | - | +              // min/max allowable length");
-        println!();
-        println!("    <cell>  ::= Int(<i32>) | Sym(<sym>) | Ref(<cell_ref>)");
-        println!("              | Rcd(<cell_ref>) | Sig(<functor>)");
-        println!("              | Lst(<cell_ref>) | Nil");
-        println!();
-        println!("    <functor>  ::= example1/0 | my_functor/3 | '*'/2 | …");
-        println!("    <cell_ref> ::= @<usize>");
-        println!("    <field>    ::= example1 | ExAmPlE2 | …");
-        println!("    <tmp_var>  ::= .example1 | .ExAmPlE2 | …");
-        println!("    <sym> ::= :example1 | :ExAmPlE2 | :'example with spaces'");
-        println!("            | :'123' | …");
-        println!();
-        println!("{:-<80}", "");
     }
 
     pub fn intern_sym(&self, text: &str) -> Sym {
