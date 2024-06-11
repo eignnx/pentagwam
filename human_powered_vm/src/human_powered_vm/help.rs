@@ -2,11 +2,7 @@ use super::HumanPoweredVm;
 
 impl HumanPoweredVm {
     pub(super) fn print_help(&self) {
-        bunt::println!(
-            "\
-{:-^80}",
-            "COMMAND DOCUMENTATION"
-        );
+        bunt::println!("{:-^80}", "COMMAND DOCUMENTATION");
         bunt::println!(
             "\
 Commands:
