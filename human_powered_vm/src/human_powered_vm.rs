@@ -1,6 +1,5 @@
 use chumsky::{primitive::end, Parser};
 use pentagwam::{
-    bc::instr::Instr,
     cell::Functor,
     defs::Sym,
     mem::{DisplayViaMem, Mem},
@@ -29,15 +28,18 @@ pub mod eval;
 pub mod help;
 pub mod scenario;
 
+pub type Instr = pentagwam::bc::instr::Instr<Functor<String>, String>;
+
 #[derive(Debug, Serialize, Deserialize, Default)]
 pub struct HumanPoweredVm {
     pub fields: BTreeMap<String, FieldData>,
+    pub instr_scripts: BTreeMap<String, String>,
     #[serde(skip)]
     pub tmp_vars: BTreeMap<String, FieldData>,
     #[serde(skip)]
     pub mem: Mem,
     #[serde(skip)]
-    pub program: Vec<Instr<Functor<String>, String>>,
+    pub program: Vec<Instr>,
 }
 
 #[derive(Debug, Serialize, Deserialize)]
@@ -123,7 +125,7 @@ impl HumanPoweredVm {
         self.setup_default_fields();
     }
 
-    pub fn load_program(&mut self, program: Vec<Instr<Functor<String>, String>>) -> &mut Self {
+    pub fn load_program(&mut self, program: Vec<Instr>) -> &mut Self {
         self.program = program;
         self
     }
@@ -241,6 +243,23 @@ impl HumanPoweredVm {
                         }
                         println!(";");
                     }
+                }
+            }
+            ["script" | "s", rest @ ..] => {
+                self.edit_script(rest)?;
+            }
+            ["del", "script" | "s", instr_name] => {
+                if let Some(script) = self.instr_scripts.remove(*instr_name) {
+                    bunt::println!(
+                        "{[dimmed]}",
+                        "Deleted script for instruction `{instr_name}`."
+                    );
+                    println!("```\n{script}\n```");
+                } else {
+                    bunt::println!(
+                        "{$red}!>{/$} Could not find an existing script for `{}`.",
+                        instr_name
+                    );
                 }
             }
             ["list" | "l", rest @ ..] => {

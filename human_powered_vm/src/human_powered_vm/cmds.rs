@@ -237,4 +237,68 @@ impl HumanPoweredVm {
         }
         Ok(())
     }
+
+    pub(super) fn edit_script(&mut self, rest: &[&str]) -> Result<()> {
+        let (instr_name, doc_comment) = match rest {
+            [] => {
+                if let Some(instr) = self.program.get(self.instr_ptr()) {
+                    (instr.instr_name().to_string(), instr.doc_comment())
+                } else {
+                    bunt::println!(
+                        "{[dimmed]}",
+                        "No current instruction to which to associated a script."
+                    );
+                    return Ok(());
+                }
+            }
+            [instr_name] => {
+                // Check that it's a valid instruction name.
+                if let Some(instr) = self
+                    .program
+                    .iter()
+                    .find(|instr| instr.instr_name() == *instr_name)
+                {
+                    (instr_name.to_string(), instr.doc_comment())
+                } else {
+                    bunt::println!(
+                        "{$red}!>{/$} The name `{}` is not a valid instruction name.",
+                        instr_name
+                    );
+                    return Ok(());
+                }
+            }
+            other => {
+                bunt::println!(
+                    "{$red}!>{/$} `script` command expects 0 or 1 arguments, got {}.",
+                    other.len()
+                );
+                return Ok(());
+            }
+        };
+
+        let script = self
+            .instr_scripts
+            .entry(instr_name)
+            .or_insert_with_key(|instr_name| {
+                let mut default_text = String::new();
+                default_text += &doc_comment
+                    .unwrap_or_default()
+                    .lines()
+                    .map(|line| format!("# {line}"))
+                    .collect::<Vec<_>>()
+                    .join("\n");
+                default_text += &format!("\n\n# Script for instruction `{instr_name}`\n");
+                default_text += "# Feel free to edit this file however you like.\n";
+                default_text +=
+                    "# Remember to use `$1`, `$2`, etc to refer to the instruction's parameters.\n";
+                default_text
+            });
+
+        bunt::println!("{[dimmed]}", "Opening associated script in editor...");
+        println!();
+        *script = edit::edit(&script)?;
+        println!("```\n{script}\n```");
+
+        Ok(())
+    }
 }
