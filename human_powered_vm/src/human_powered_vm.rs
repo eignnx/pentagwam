@@ -4,6 +4,7 @@ use pentagwam::{
     defs::Sym,
     mem::{DisplayViaMem, Mem},
 };
+use script::Script;
 use serde::{Deserialize, Serialize};
 use std::{
     collections::{BTreeMap, BTreeSet},
@@ -27,13 +28,14 @@ pub mod error;
 pub mod eval;
 pub mod help;
 pub mod scenario;
+pub mod script;
 
 pub type Instr = pentagwam::bc::instr::Instr<Functor<String>, String>;
 
 #[derive(Debug, Serialize, Deserialize, Default)]
 pub struct HumanPoweredVm {
     pub fields: BTreeMap<String, FieldData>,
-    pub instr_scripts: BTreeMap<String, String>,
+    pub instr_scripts: BTreeMap<String, Script>,
     #[serde(skip)]
     pub tmp_vars: BTreeMap<String, FieldData>,
     #[serde(skip)]
@@ -247,6 +249,25 @@ impl HumanPoweredVm {
             }
             ["script" | "s", rest @ ..] => {
                 self.edit_script(rest)?;
+            }
+            ["run" | "r", "script" | "s"] | ["rs"] => {
+                if let Some(instr) = self.program.get(self.instr_ptr()).cloned() {
+                    if let Some(script) = self.instr_scripts.get(instr.instr_name()) {
+                        println!("Running script for `{}` instruction...", instr.instr_name());
+                        let script = script.clone();
+                        script.exec(self)?;
+                    } else {
+                        bunt::println!(
+                            "{$red}!>{/$} No script found for instruction `{}`.",
+                            instr.instr_name()
+                        );
+                    }
+                } else {
+                    bunt::println!(
+                        "{$red}!>{/$} No instruction found at program index `{}`.",
+                        self.instr_ptr()
+                    );
+                }
             }
             ["del", "script" | "s", instr_name] => {
                 if let Some(script) = self.instr_scripts.remove(*instr_name) {

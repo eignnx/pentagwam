@@ -1,3 +1,4 @@
+use crate::human_powered_vm::script::Script;
 use crate::human_powered_vm::{error::Error, error::Result, HumanPoweredVm};
 use crate::vals::{lval::LVal, rval::RVal, slice::Region, val::Val};
 
@@ -291,12 +292,12 @@ impl HumanPoweredVm {
                 default_text += "# Feel free to edit this file however you like.\n";
                 default_text +=
                     "# Remember to use `$1`, `$2`, etc to refer to the instruction's parameters.\n";
-                default_text
+                Script::parse(&default_text).unwrap()
             });
 
         bunt::println!("{[dimmed]}", "Opening associated script in editor...");
         println!();
-        *script = edit::edit(&script)?;
+        *script = Script::parse(&edit::edit(script.to_string())?)?;
         println!("```\n{script}\n```");
 
         Ok(())
