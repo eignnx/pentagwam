@@ -75,3 +75,54 @@ impl fmt::Display for Script {
         Ok(())
     }
 }
+
+#[cfg(not(any(target_os = "windows", target_os = "macos")))]
+pub static EDITORS_AVAILABLE: &[(&str, &[&str])] = &[
+    (
+        "CLI editors",
+        &[
+            "sensible-editor",
+            "nano",
+            "pico",
+            "vim",
+            "nvim",
+            "vi",
+            "emacs",
+        ],
+    ),
+    ("GUI editors", &["code", "atom", "subl", "gedit", "gvim"]),
+    (
+        "Generic \"file openers\"",
+        &["xdg-open", "gnome-open", "kde-open"],
+    ),
+];
+
+#[cfg(target_os = "macos")]
+pub static EDITORS_AVAILABLE: &[(&str, &[&str])] = &[
+    (
+        "CLI editors",
+        &["nano", "pico", "vim", "nvim", "vi", "emacs", "open -Wt"],
+    ),
+    (
+        "GUI editors",
+        &["code -w", "atom -w", "subl -w", "gvim", "mate"],
+    ),
+    (
+        "Generic \"file openers\"",
+        &["open -a TextEdit", "open -a TextMate", "open"],
+    ),
+];
+
+#[cfg(target_os = "windows")]
+pub static EDITORS_AVAILABLE: &[(&str, &[&str])] = &[
+    (
+        "GUI editors",
+        &[
+            "code.cmd -n -w",
+            "atom.exe -w",
+            "subl.exe -w",
+            "notepad.exe",
+        ],
+    ),
+    ("Generic \"file openers\"", &["cmd.exe /C start"]),
+];

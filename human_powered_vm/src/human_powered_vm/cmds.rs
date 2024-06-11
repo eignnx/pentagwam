@@ -297,6 +297,9 @@ impl HumanPoweredVm {
 
         bunt::println!("{[dimmed]}", "Opening associated script in editor...");
         println!();
+        if let Some(preferred_editor) = &self.preferred_editor {
+            std::env::set_var("EDITOR", preferred_editor);
+        }
         *script = Script::parse(&edit::edit(script.to_string())?)?;
         println!("```\n{script}\n```");
 

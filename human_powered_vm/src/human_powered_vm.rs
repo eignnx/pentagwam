@@ -42,6 +42,7 @@ pub struct HumanPoweredVm {
     pub mem: Mem,
     #[serde(skip)]
     pub program: Vec<Instr>,
+    pub preferred_editor: Option<String>,
 }
 
 #[derive(Debug, Serialize, Deserialize)]
@@ -73,7 +74,7 @@ impl Drop for HumanPoweredVm {
             &self,
             ron::ser::PrettyConfig::default()
                 .struct_names(true)
-                .depth_limit(3),
+                .depth_limit(4),
         )
         .unwrap();
         let mut file = std::fs::File::create(SAVE_FILE).unwrap_or_else(|e| {
@@ -244,6 +245,44 @@ impl HumanPoweredVm {
                             }
                         }
                         println!(";");
+                    }
+                }
+            }
+            ["config", "editor"] => {
+                println!(
+                    "Choose a preferred text editor for editing instruction-associated scripts.\
+                    Current preferred editor is `{}`.",
+                    self.preferred_editor.as_deref().unwrap_or("<none>")
+                );
+                let mut choices = vec![];
+                for (category, editors) in script::EDITORS_AVAILABLE {
+                    println!("  {category}:");
+                    for editor in *editors {
+                        println!("    {idx}. {editor}", idx = choices.len() + 1);
+                        choices.push(editor);
+                    }
+                }
+                loop {
+                    let input = self.prompt(&format!(
+                        "Enter a number in the range 1..={}",
+                        choices.len()
+                    ));
+
+                    if ["none", "<none>", "0", ""].contains(&input.to_ascii_lowercase().as_str()) {
+                        self.preferred_editor = None;
+                        println!("Resetting to default text editor.");
+                        break;
+                    } else if let Ok(n) = input.parse::<usize>() {
+                        if (1..=choices.len()).contains(&n) {
+                            let choice = choices[n - 1];
+                            self.preferred_editor = Some(choice.to_string());
+                            println!("Preferred editor set to `{choice}`.");
+                            break;
+                        } else {
+                            println!("!> Choice out of valid range.");
+                        }
+                    } else {
+                        println!("!> Please enter a positive integer.");
                     }
                 }
             }
