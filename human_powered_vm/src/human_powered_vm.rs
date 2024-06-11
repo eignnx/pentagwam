@@ -131,7 +131,7 @@ impl HumanPoweredVm {
     }
 
     fn prompt(&self, prompt: &str) -> String {
-        print!("({prompt})=> ");
+        print!("({prompt}): ");
         std::io::stdout().flush().unwrap();
         let mut input = String::new();
         std::io::stdin().read_line(&mut input).unwrap();
@@ -252,7 +252,7 @@ impl HumanPoweredVm {
                 if let Some(script) = self.instr_scripts.remove(*instr_name) {
                     bunt::println!(
                         "{[dimmed]}",
-                        "Deleted script for instruction `{instr_name}`."
+                        format!("Deleted script for instruction `{instr_name}`."),
                     );
                     println!("```\n{script}\n```");
                 } else {

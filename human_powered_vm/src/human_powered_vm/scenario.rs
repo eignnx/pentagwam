@@ -18,7 +18,7 @@ impl HumanPoweredVm {
 
         for cmd in scenario.setup {
             println!();
-            bunt::println!("=> {[italic]}", cmd);
+            bunt::println!(": {[italic]}", cmd);
             match self.handle_cmd(&cmd) {
                 Ok(_) => {}
                 Err(e) => {
