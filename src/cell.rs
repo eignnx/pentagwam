@@ -8,6 +8,7 @@ use crate::{
 };
 
 #[derive(Debug, Clone, Copy, PartialEq, Eq, PartialOrd, Ord, Hash, Serialize, Deserialize)]
+#[repr(u64)]
 pub enum Cell {
     /// A reference (usually represents a variable).
     Ref(CellRef),
