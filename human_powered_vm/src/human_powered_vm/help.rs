@@ -1,23 +1,26 @@
+use owo_colors::OwoColorize;
+
 use super::HumanPoweredVm;
+use crate::human_powered_vm::styles::{bad_name, cell, lval, name, rval, val};
 
 impl HumanPoweredVm {
     pub(super) fn print_help(&self) {
-        bunt::println!("{:-^80}", "COMMAND DOCUMENTATION");
-        bunt::println!(
+        println!("{:-^80}", "COMMAND DOCUMENTATION");
+        println!(
             "\
 Commands:
-  {[red]rval} <- {[magenta]lval} - Assign the value of {[red]rval} to {[magenta]lval}.
-  {[magenta]lval} <- tm {[#137d2c]tm}
-                   - Assign the Prolog term {[#137d2c]tm} to {[magenta]lval}.
-  {[red]rval}           - Print the value of {[red]rval}.
-  tm {[red]rval}        - Print the Prolog term residing in memory
-                     at CellRef {[red]rval}.
-  alias {[cyan+dimmed]new} -> {[cyan]old}
-                   - Alias {[cyan]old} as {[cyan+dimmed]new}.
-  del {[cyan]name}       - Delete the field, tmp var, or alias {[cyan]name}.
-  push {[red]rval}      - Push the value of {[red]rval} onto the heap.
+  {rval} <- {lval} - Assign the value of {rval} to {lval}.
+  {lval} <- tm {tm}
+                   - Assign the Prolog term {tm} to {lval}.
+  {rval}           - Print the value of {rval}.
+  tm {rval}        - Print the Prolog term residing in memory
+                     at CellRef {rval}.
+  alias {new} -> {old}
+                   - Alias {old} as {new}.
+  del {name}       - Delete the field, tmp var, or alias {name}.
+  push {rval}      - Push the value of {rval} onto the heap.
   fields | f       - Print all the data fields of the VM.
-  list {[#db7900]slice}
+  list {slice}
                    - Print a slice of memory.
   docs | doc | d   - Print the documentation for the current
                      instruction.
@@ -29,56 +32,56 @@ Commands:
 
   L-Values: values which represent a memory location which
             can be assigned to.
-    {[magenta]lval} ::= {[cyan]field} | {[cyan]tmp_var} | {[red]rval}.* | {[red]rval}[{[red]rval}]
+    {lval} ::= {field} | {tmp_var} | {rval}.* | {rval}[{rval}]
 
-  R-Values: expressions which can evaluate to a base value ({[yellow]val}).
-    {[red]rval} ::= {[yellow]usize} | {[yellow]i32} | {[yellow]sym} | {[cyan]tmp_var} | {[cyan]field}
-             | {[red]rval}.& | {[red]rval}.*
-             | {[red]rval}[{[red]rval}] | {[#db7900]slice}
-             | {[yellow]cell_ref} | {[blue]cell}
-             | {[#c9db00]functor}
+  R-Values: expressions which can evaluate to a base value ({val}).
+    {rval} ::= {usize} | {i32} | {sym} | {tmp_var} | {field}
+             | {rval}.& | {rval}.*
+             | {rval}[{rval}] | {slice}
+             | {cell_ref} | {cell}
+             | {functor}
 
-    {[yellow]val}   ::= {[yellow]usize} | {[yellow]i32} | {[yellow]sym} | {[yellow]cell_ref} | {[blue]cell}
-    {[yellow]usize} ::= 0 | 1 | 2 | …
-    {[yellow]i32}   ::= +0 | -0 | +1 | -1 | +2 | -2 | …
+    {val}   ::= {usize} | {i32} | {sym} | {cell_ref} | {cell}
+    {usize} ::= 0 | 1 | 2 | …
+    {i32}   ::= +0 | -0 | +1 | -1 | +2 | -2 | …
 
-    {[#db7900]slice} ::= {[red]rval}[{[#db0071]idx};{[#db00b7]len}]
+    {slice} ::= {rval}[{idx};{len}]
 
-    {[#db0071]idx} ::= {[yellow]usize} | {[yellow]i32}
+    {idx} ::= {usize} | {i32}
             | - | +              // lowest/highest+1 index
-    {[#db00b7]len} ::= {[yellow]usize} | {[yellow]i32}
+    {len} ::= {usize} | {i32}
             | - | +              // min/max allowable length
 
-    {[blue]cell}  ::= Int({[yellow]i32}) | Sym({[yellow]sym}) | Ref({[yellow]cell_ref})
-              | Rcd({[yellow]cell_ref}) | Sig({[yellow]functor})
-              | Lst({[yellow]cell_ref}) | Nil
+    {cell}  ::= Int({i32}) | Sym({sym}) | Ref({cell_ref})
+              | Rcd({cell_ref}) | Sig({functor})
+              | Lst({cell_ref}) | Nil
 
-    {[#c9db00]functor}  ::= {[red]rval}/{[red]rval}
-    {[yellow]cell_ref} ::= @{[yellow]usize}
-    {[cyan]field}    ::= example1 | ExAmPlE2 | …
-    {[cyan]tmp_var}  ::= .example1 | .ExAmPlE2 | …
-    {[yellow]sym} ::= :example1 | :ExAmPlE2 | :'example with spaces'
+    {functor}  ::= {rval}/{rval}
+    {cell_ref} ::= @{usize}
+    {field}    ::= example1 | ExAmPlE2 | …
+    {tmp_var}  ::= .example1 | .ExAmPlE2 | …
+    {sym} ::= :example1 | :ExAmPlE2 | :'example with spaces'
             | :'123' | …
 ",
-            new = "<new>",
-            old = "<old>",
-            name = "<name>",
-            lval = "<lval>",
-            rval = "<rval>",
-            tm = "<tm>",
-            val = "<val>",
-            usize = "<usize>",
-            i32 = "<i32>",
-            slice = "<slice>",
-            idx = "<idx>",
-            len = "<len>",
-            cell = "<cell>",
-            functor = "<functor>",
-            cell_ref = "<cell_ref>",
-            field = "<field>",
-            tmp_var = "<tmp_var>",
-            sym = "<sym>",
+            new = "<new>".style(bad_name()),
+            old = "<old>".style(name()),
+            name = "<name>".style(name()),
+            lval = "<lval>".style(lval()),
+            rval = "<rval>".style(rval()),
+            tm = "<tm>".bright_green(),
+            val = "<val>".style(val()),
+            usize = "<usize>".style(val()),
+            i32 = "<i32>".style(val()),
+            slice = "<slice>".style(val()),
+            idx = "<idx>".style(val()),
+            len = "<len>".style(val()),
+            cell = "<cell>".style(cell()),
+            functor = "<functor>".style(val()),
+            cell_ref = "<cell_ref>".style(val()),
+            field = "<field>".style(name()),
+            tmp_var = "<tmp_var>".style(name()),
+            sym = "<sym>".style(val()),
         );
-        bunt::println!(" {:-<80}", "");
+        println!(" {:-<80}", "");
     }
 }

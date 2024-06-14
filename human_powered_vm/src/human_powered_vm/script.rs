@@ -1,6 +1,9 @@
 use std::{fmt, ops::ControlFlow};
 
+use owo_colors::OwoColorize;
 use serde::{Deserialize, Serialize};
+
+use crate::human_powered_vm::styles::err_tok;
 
 use super::{error::Result, HumanPoweredVm};
 
@@ -35,9 +38,10 @@ impl Script {
             match line {
                 ScriptLine::Doc(_) => {}
                 ScriptLine::Cmd(cmd) => {
-                    bunt::println!(
-                        "=> {[bold+intense+italic]}\t\t(Auto-running command...)",
-                        cmd
+                    println!(
+                        "=> {}{:>40}",
+                        cmd.bold().italic(),
+                        "(Auto-running command...)"
                     );
                     match hpvm.handle_cmd(cmd) {
                         Ok(ControlFlow::Continue(())) => {}
@@ -49,9 +53,10 @@ impl Script {
                             return Ok(());
                         }
                         Err(e) => {
-                            bunt::println!(
-                                "{$red}!>{/$} Error while running script command `{[bold+intense+italic]}` at line {}:",
-                                cmd,
+                            println!(
+                                "{} Error while running script command `{}` at line {}:",
+                                err_tok(),
+                                cmd.bold().italic(),
                                 i + 1
                             );
                             return Err(e);

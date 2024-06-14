@@ -1,3 +1,7 @@
+use owo_colors::OwoColorize;
+
+use crate::human_powered_vm::styles::heading;
+
 use super::{error::Result, HumanPoweredVm};
 use pentagwam::{bc::instr::Instr, cell::Functor};
 use serde::{Deserialize, Serialize};
@@ -14,11 +18,11 @@ impl HumanPoweredVm {
     // where
     //     L: Deserialize<'a>,
     pub fn run_scenario(&mut self, scenario: Scenario<Functor<String>>) -> Result<()> {
-        bunt::println!("{$bold+underline}SETUP:{/$}");
+        println!("{}", "SETUP:".style(heading()));
 
         for cmd in scenario.setup {
             println!();
-            bunt::println!(": {[italic]}", cmd);
+            println!(": {}", cmd.italic());
             match self.handle_cmd(&cmd) {
                 Ok(_) => {}
                 Err(e) => {
@@ -29,7 +33,7 @@ impl HumanPoweredVm {
         }
 
         println!();
-        bunt::println!("{$bold+underline}BEGIN SESSION:{/$}");
+        println!("{}", "BEGIN SESSION:".style(heading()));
 
         self.load_program(scenario.program)
             .run::<Functor<String>, String>()

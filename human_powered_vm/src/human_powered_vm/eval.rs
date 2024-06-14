@@ -1,16 +1,20 @@
+use owo_colors::OwoColorize;
 use pentagwam::{cell::Cell, defs::CellRef};
 
 use super::{
     error::{Error, Result},
     FieldData, HumanPoweredVm,
 };
-use crate::vals::{
-    cellval::CellVal,
-    lval::LVal,
-    rval::RVal,
-    slice::{Idx, Len, Region, Slice},
-    val::Val,
-    valty::ValTy,
+use crate::{
+    human_powered_vm::styles::{self, name, val, valty},
+    vals::{
+        cellval::CellVal,
+        lval::LVal,
+        rval::RVal,
+        slice::{Idx, Len, Region, Slice},
+        val::Val,
+        valty::ValTy,
+    },
 };
 
 impl HumanPoweredVm {
@@ -332,10 +336,10 @@ impl HumanPoweredVm {
                 self.mem
                     .try_cell_write(r, rhs)
                     .ok_or(Error::OutOfBoundsMemWrite(Region::Mem, r.usize()))?;
-                bunt::println!(
-                    "Wrote `{[yellow]}` to `{[cyan]}`.",
-                    self.mem.display(&rhs),
-                    r
+                println!(
+                    "Wrote `{}` to `{}`.",
+                    self.mem.display(&rhs).style(val()),
+                    r.style(styles::lval())
                 );
             }
 
@@ -353,10 +357,10 @@ impl HumanPoweredVm {
                 self.mem
                     .try_cell_write(addr, rhs)
                     .ok_or(Error::OutOfBoundsMemWrite(Region::Mem, addr.usize()))?;
-                bunt::println!(
-                    "Wrote `{[yellow]}` to `{[cyan]}`.",
-                    self.mem.display(&rhs),
-                    addr
+                println!(
+                    "Wrote `{}` to `{}`.",
+                    self.mem.display(&rhs).style(val()),
+                    addr.style(styles::lval())
                 );
             }
 
@@ -365,10 +369,10 @@ impl HumanPoweredVm {
             LVal::Field(field) => {
                 if let Some(fdata) = self.fields.get_mut(field) {
                     fdata.assign_val(rhs.clone(), &self.mem)?;
-                    bunt::println!(
-                        "Wrote `{[yellow]}` to `{[cyan]field}`.",
-                        self.mem.display(&rhs),
-                        field = field
+                    println!(
+                        "Wrote `{}` to `{}`.",
+                        self.mem.display(&rhs).style(val()),
+                        field.style(name())
                     );
                 } else if let Some((base_name, fdata)) = self
                     .fields
@@ -376,11 +380,11 @@ impl HumanPoweredVm {
                     .find(|(_base_name, fdata)| fdata.aliases.contains(field))
                 {
                     fdata.assign_val(rhs.clone(), &self.mem)?;
-                    bunt::println!(
-                        "Wrote `{[yellow]}` to `{[cyan]field}` (alias of `{[cyan]base_name}`).",
-                        self.mem.display(&rhs),
-                        field = field,
-                        base_name = base_name,
+                    println!(
+                        "Wrote `{rhs}` to `{alias}` (alias of `{base_name}`).",
+                        rhs = self.mem.display(&rhs).style(val()),
+                        alias = field.style(name()),
+                        base_name = base_name.style(name()),
                     );
                 } else {
                     // It must be a new field.
@@ -393,11 +397,11 @@ impl HumanPoweredVm {
                             aliases: Default::default(),
                         },
                     );
-                    bunt::println!(
-                        "Created new field `{[cyan]}: {[green]} = {[yellow]}`.",
-                        field,
-                        rhs.ty(),
-                        self.mem.display(&rhs)
+                    println!(
+                        "Created new field `{}: {} = {}`.",
+                        field.style(name()),
+                        rhs.ty().style(valty()),
+                        self.mem.display(&rhs).style(val())
                     );
                 }
             }
@@ -408,10 +412,10 @@ impl HumanPoweredVm {
                 let dot_name = format!(".{var_name}");
                 if let Some(fdata) = self.tmp_vars.get_mut(var_name) {
                     fdata.assign_val(rhs.clone(), &self.mem)?;
-                    bunt::println!(
-                        "Wrote `{[yellow]}` to `{[cyan]}`.",
-                        self.mem.display(&rhs),
-                        dot_name
+                    println!(
+                        "Wrote `{}` to `{}`.",
+                        self.mem.display(&rhs).style(val()),
+                        dot_name.style(name())
                     );
                 } else if let Some((base_name, fdata)) = self
                     .tmp_vars
@@ -419,11 +423,11 @@ impl HumanPoweredVm {
                     .find(|(_base_name, fdata)| fdata.aliases.contains(var_name))
                 {
                     fdata.assign_val(rhs.clone(), &self.mem)?;
-                    bunt::println!(
-                        "Wrote `{[yellow]}` to `{[cyan]}` (alias of `{[cyan]}`).",
-                        self.mem.display(&rhs),
-                        dot_name,
-                        format!(".{base_name}"),
+                    println!(
+                        "Wrote `{}` to `{}` (alias of `{}`).",
+                        self.mem.display(&rhs).style(val()),
+                        dot_name.style(name()),
+                        format!(".{base_name}").style(name()),
                     );
                 } else {
                     // It must be a new tmp var.
@@ -436,11 +440,11 @@ impl HumanPoweredVm {
                             aliases: Default::default(),
                         },
                     );
-                    bunt::println!(
-                        "Created new temporary variable `{[cyan]}: {[green]} = {[yellow]}`.",
-                        dot_name,
-                        rhs.ty(),
-                        self.mem.display(&rhs)
+                    println!(
+                        "Created new temporary variable `{}: {} = {}`.",
+                        dot_name.style(name()),
+                        rhs.ty().style(valty()),
+                        self.mem.display(&rhs).style(val())
                     );
                 }
             }

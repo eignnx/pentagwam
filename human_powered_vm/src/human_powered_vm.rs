@@ -1,4 +1,5 @@
 use chumsky::{primitive::end, Parser};
+use owo_colors::OwoColorize;
 use pentagwam::{
     cell::Functor,
     defs::Sym,
@@ -12,6 +13,7 @@ use std::{
     io::{Read, Write},
     ops::ControlFlow,
 };
+use styles::{err_tok, instr, name, note, val, valty};
 
 use crate::human_powered_vm::error::{Error, Result};
 use crate::vals::{
@@ -29,6 +31,7 @@ pub mod eval;
 pub mod help;
 pub mod scenario;
 pub mod script;
+pub mod styles;
 
 pub type Instr = pentagwam::bc::instr::Instr<Functor<String>, String>;
 
@@ -78,10 +81,9 @@ impl Drop for HumanPoweredVm {
         )
         .unwrap();
         let mut file = std::fs::File::create(SAVE_FILE).unwrap_or_else(|e| {
-            bunt::println!(
-                "{$red}Could not open save file `{}` due to error: {}{/$}",
-                SAVE_FILE,
-                e
+            println!(
+                "{} Could not open save file `{SAVE_FILE}` due to error: {e}",
+                err_tok()
             );
             println!("DUMP SAVE DATA:");
             println!("---------------");
@@ -134,7 +136,7 @@ impl HumanPoweredVm {
     }
 
     fn prompt(&self, prompt: &str) -> String {
-        print!("({prompt}): ");
+        print!("({}): ", prompt.style(note()));
         std::io::stdout().flush().unwrap();
         let mut input = String::new();
         std::io::stdin().read_line(&mut input).unwrap();
@@ -147,15 +149,19 @@ impl HumanPoweredVm {
             self.update_builtin_fields();
             println!();
             if let Some(instr) = self.program.get(self.instr_ptr()) {
-                bunt::println!(
-                    "{$dimmed}instr #{:04}:{/$} {[bold+italic]}",
-                    self.instr_ptr(),
+                println!(
+                    "{} {}",
+                    format!("instr #{:04}:", self.instr_ptr()).style(note()),
                     self.mem.display(instr)
                 );
             } else {
-                bunt::println!(
-                    "{$dimmed}instr #{:04}:{/$} {$dimmed+italic}[instr pointer beyond end of program]{/$}",
-                    self.instr_ptr(),
+                println!(
+                    "{}",
+                    format!(
+                        "instr #{:04}: [instr pointer beyond end of program]",
+                        self.instr_ptr(),
+                    )
+                    .style(note()),
                 );
             }
 
@@ -163,7 +169,7 @@ impl HumanPoweredVm {
             match self.handle_cmd(&cmd) {
                 Ok(ControlFlow::Break(())) => break,
                 Ok(ControlFlow::Continue(())) => continue,
-                Err(e) => bunt::println!("{$red}!>{/$} {}", e),
+                Err(e) => println!("{} {e}", err_tok()),
             }
         }
         Ok(())
@@ -184,17 +190,18 @@ impl HumanPoweredVm {
                     if let Some(docs) = instr.doc_comment() {
                         println!("{:-^80}", "INSTRUCTION DOCUMENTATION");
                         println!();
-                        bunt::println!(
-                            "{[bold+intense+italic]:^80}",
-                            self.mem.display(instr).to_string()
+                        println!(
+                            "{:^80}",
+                            self.mem.display(instr).to_string().style(styles::instr())
                         );
                         println!();
                         println!("{docs}");
                         println!("{:-<80}", "");
                     } else {
-                        bunt::println!(
-                            "{$red}!>{/$} No documentation available for instruction `{[italic+intense+bold]}`",
-                            self.mem.display(instr)
+                        println!(
+                            "{} No documentation available for instruction `{}`",
+                            err_tok(),
+                            self.mem.display(instr).style(styles::instr())
                         );
                     }
                 }
@@ -206,11 +213,11 @@ impl HumanPoweredVm {
             ["fields" | "f"] => {
                 println!("Virtual Machine Fields:");
                 for (field, fdata) in self.fields.iter() {
-                    bunt::print!(
-                        "\t{[cyan]}: {[green]} = {[yellow]}",
-                        field,
-                        fdata.ty,
-                        self.mem.display(&fdata.value)
+                    let decl = format!(
+                        "{}: {} = {}",
+                        field.style(name()),
+                        fdata.ty.style(valty()),
+                        self.mem.display(&fdata.value).style(val())
                     );
                     if !fdata.aliases.is_empty() {
                         let joined = fdata
@@ -219,24 +226,24 @@ impl HumanPoweredVm {
                             .map(AsRef::as_ref)
                             .collect::<Vec<&str>>()
                             .join(", ");
-                        let aliases = format!("aliases: {joined}");
-                        bunt::println!("\t\t\t\t{[italic]};", aliases);
+                        let aliases = format!("aliases: {joined};");
+                        println!("\t{decl:<40}{:>40}", aliases.style(note()));
                     } else {
-                        println!();
+                        println!("\t{decl};");
                     }
                 }
 
                 println!();
                 println!("Temporary Variables:");
                 if self.tmp_vars.is_empty() {
-                    bunt::println!("\t{$italic+dimmed}No temporary variables defined.{/$}");
+                    println!("\t{}", "No temporary variables defined.".style(note()));
                 } else {
                     for (var_name, fdata) in self.tmp_vars.iter() {
-                        bunt::print!(
-                            "\t.{[cyan]}: {[green]} = {[yellow]}",
-                            var_name,
-                            fdata.ty,
-                            self.mem.display(&fdata.value)
+                        print!(
+                            "\t.{}: {} = {}",
+                            var_name.style(name()),
+                            fdata.ty.style(valty()),
+                            self.mem.display(&fdata.value).style(val())
                         );
                         if !fdata.aliases.is_empty() {
                             print!("\t\taliases: ");
@@ -279,10 +286,10 @@ impl HumanPoweredVm {
                             println!("Preferred editor set to `{choice}`.");
                             break;
                         } else {
-                            println!("!> Choice out of valid range.");
+                            println!("{} Choice out of valid range.", err_tok());
                         }
                     } else {
-                        println!("!> Please enter a positive integer.");
+                        println!("{} Please enter a positive integer.", err_tok());
                     }
                 }
             }
@@ -292,33 +299,39 @@ impl HumanPoweredVm {
             ["run" | "r", "script" | "s"] | ["rs"] => {
                 if let Some(instr) = self.program.get(self.instr_ptr()).cloned() {
                     if let Some(script) = self.instr_scripts.get(instr.instr_name()) {
-                        println!("Running script for `{}` instruction...", instr.instr_name());
+                        println!(
+                            "Running script for `{}` instruction...",
+                            instr.instr_name().style(styles::instr())
+                        );
                         let script = script.clone();
                         script.exec(self)?;
                     } else {
-                        bunt::println!(
-                            "{$red}!>{/$} No script found for instruction `{}`.",
-                            instr.instr_name()
+                        println!(
+                            "{} No script found for instruction `{}`.",
+                            err_tok(),
+                            instr.instr_name().style(styles::bad_instr())
                         );
                     }
                 } else {
-                    bunt::println!(
-                        "{$red}!>{/$} No instruction found at program index `{}`.",
+                    println!(
+                        "{} No instruction found at program index `{}`.",
+                        err_tok(),
                         self.instr_ptr()
                     );
                 }
             }
             ["del", "script" | "s", instr_name] => {
                 if let Some(script) = self.instr_scripts.remove(*instr_name) {
-                    bunt::println!(
-                        "{[dimmed]}",
-                        format!("Deleted script for instruction `{instr_name}`."),
+                    println!(
+                        "{}",
+                        format!("Deleted script for instruction `{instr_name}`.").style(note()),
                     );
                     println!("```\n{script}\n```");
                 } else {
-                    bunt::println!(
-                        "{$red}!>{/$} Could not find an existing script for `{}`.",
-                        instr_name
+                    println!(
+                        "{} Could not find an existing script for `{}`.",
+                        err_tok(),
+                        instr_name.style(instr())
                     );
                 }
             }
@@ -336,7 +349,7 @@ impl HumanPoweredVm {
             }
             ["next" | "n"] => {
                 *self.instr_ptr_mut() += 1;
-                bunt::println!("{$dimmed}Advanced to next instruction.{/$}");
+                println!("{}", "Advanced to next instruction.".style(note()));
             }
             ["del", name] => {
                 self.delete_name(name)?;
@@ -346,10 +359,10 @@ impl HumanPoweredVm {
                 let term_parser = pentagwam::syntax::Term::parser();
                 let term = term_parser.parse::<_, &str>(term_text.as_str())?;
                 let cell_ref = term.serialize(&mut self.mem);
-                bunt::println!(
-                    "Serialized Prolog term `{[yellow]}` into memory at `{[yellow]}`.",
-                    term_text,
-                    cell_ref
+                println!(
+                    "Serialized Prolog term `{}` into memory at `{}`.",
+                    term_text.style(val()),
+                    cell_ref.style(val())
                 );
             }
             ["push", rval] => {
@@ -357,17 +370,23 @@ impl HumanPoweredVm {
                 let val = self.eval_to_val(&rval)?;
                 let cell = val.try_as_cell(&self.mem)?;
                 self.mem.push(cell);
-                bunt::println!(
-                    "Pushed `{[yellow]}` onto top of heap.",
-                    self.mem.display(&val)
+                println!(
+                    "Pushed `{}` onto top of heap.",
+                    self.mem.display(&val).style(styles::val())
                 );
             }
             [_, "=", tm @ ("term" | "tm"), ..] => {
-                bunt::println!("{$red}!>{/$} Use `<lval> {tm} {$bold+intense+red}<-{/$} <rval>` to assign to an l-value.", tm = tm);
+                println!(
+                    "{} Use `<lval> {tm} {arr} <rval>` to assign to an l-value.",
+                    err_tok(),
+                    arr = "<-".bright_red()
+                );
             }
             [_, "=", ..] => {
-                bunt::println!(
-                    "{$red}!>{/$} Use `<lval> {$bold+intense+red}<-{/$} <rval>` to assign to an l-value."
+                println!(
+                    "{} Use `<lval> {arr} <rval>` to assign to an l-value.",
+                    err_tok(),
+                    arr = "<-".bright_red()
                 );
             }
             [lval, "<-", "term" | "tm", rest @ ..] => {
@@ -375,18 +394,18 @@ impl HumanPoweredVm {
                 let term_parser = pentagwam::syntax::Term::parser();
                 let term = term_parser.parse::<_, &str>(term_text.as_str())?;
                 let cell_ref = term.serialize(&mut self.mem);
-                bunt::println!(
-                    "Serialized Prolog term `{[yellow]term_text}` into memory at `{[yellow]cell_ref}`.",
-                    term_text = term_text,
-                    cell_ref = cell_ref
+                println!(
+                    "Serialized Prolog term `{term_text}` into memory at `{cell_ref}`.",
+                    term_text = term_text.style(val()),
+                    cell_ref = cell_ref.style(val())
                 );
                 let lval: LVal = lval.parse()?;
                 let rval: RVal = cell_ref.into();
                 self.lval_set(&lval, &rval)?;
-                bunt::println!(
-                    "CellRef `{[yellow]cell_ref}` saved into `{[yellow]}`.",
-                    self.mem.display(&lval),
-                    cell_ref = cell_ref,
+                println!(
+                    "CellRef `{}` saved into `{}`.",
+                    cell_ref.style(val()),
+                    self.mem.display(&lval).style(val()),
                 );
             }
             [lval, "<-", rhs] => {
@@ -400,7 +419,7 @@ impl HumanPoweredVm {
                 let term_text: String = rest.join(" ");
                 let term_parser = pentagwam::syntax::Term::parser();
                 let term = term_parser.parse::<_, &str>(term_text.as_str())?;
-                bunt::println!("=> {tm} {[yellow]term}", tm = tm, term = term);
+                println!("=> {tm} {term}", tm = tm, term = term.style(val()));
             }
             rval => {
                 let rval = RVal::parser().then_ignore(end()).parse(rval.join(" "))?;
