@@ -44,10 +44,12 @@ impl CellRef {
         n.into()
     }
 
+    #[inline]
     pub fn usize(self) -> usize {
         self.0.try_into().unwrap()
     }
 
+    #[inline]
     pub fn i64(self) -> i64 {
         self.0 as i64
     }
@@ -65,13 +67,35 @@ impl std::ops::Add<usize> for CellRef {
     type Output = CellRef;
 
     fn add(self, rhs: usize) -> Self::Output {
-        (self.0 + rhs as u32).into()
+        (self.usize() + rhs).into()
+    }
+}
+
+impl std::ops::Add<CellRef> for usize {
+    type Output = CellRef;
+    fn add(self, rhs: CellRef) -> Self::Output {
+        (self + rhs.usize()).into()
     }
 }
 
 impl std::ops::AddAssign<usize> for CellRef {
     fn add_assign(&mut self, rhs: usize) {
         self.0 += rhs as u32;
+    }
+}
+
+impl std::ops::Sub<usize> for CellRef {
+    type Output = CellRef;
+
+    fn sub(self, rhs: usize) -> Self::Output {
+        (self.usize() - rhs).into()
+    }
+}
+
+impl std::ops::Sub<CellRef> for usize {
+    type Output = CellRef;
+    fn sub(self, rhs: CellRef) -> Self::Output {
+        (self - rhs.usize()).into()
     }
 }
 
