@@ -14,7 +14,7 @@ use std::{
     io::{Read, Write},
     ops::ControlFlow,
 };
-use styles::{err_tok, instr, name, note, val, valty};
+use styles::{err_tok, instr, note, val};
 
 use crate::human_powered_vm::error::{Error, Result};
 use crate::vals::{
@@ -211,115 +211,13 @@ impl HumanPoweredVm {
                 println!("Saving field declarations and exiting...");
                 return Ok(ControlFlow::Break(()));
             }
-            ["fields" | "f"] => {
-                println!("Virtual Machine Fields:");
-                for (field, fdata) in self.fields.iter() {
-                    let decl = format!(
-                        "{}: {} = {}",
-                        field.style(name()),
-                        fdata.ty.style(valty()),
-                        self.mem.display(&fdata.value).style(val())
-                    );
-                    if !fdata.aliases.is_empty() {
-                        let joined = fdata
-                            .aliases
-                            .iter()
-                            .map(AsRef::as_ref)
-                            .collect::<Vec<&str>>()
-                            .join(", ");
-                        let aliases = format!("aliases: {joined};");
-                        println!("\t{decl:<40}{:>40}", aliases.style(note()));
-                    } else {
-                        println!("\t{decl};");
-                    }
-                }
-
-                println!();
-                println!("Temporary Variables:");
-                if self.tmp_vars.is_empty() {
-                    println!("\t{}", "No temporary variables defined.".style(note()));
-                } else {
-                    for (var_name, fdata) in self.tmp_vars.iter() {
-                        print!(
-                            "\t.{}: {} = {}",
-                            var_name.style(name()),
-                            fdata.ty.style(valty()),
-                            self.mem.display(&fdata.value).style(val())
-                        );
-                        if !fdata.aliases.is_empty() {
-                            print!("\t\taliases: ");
-                            for (i, alias) in fdata.aliases.iter().enumerate() {
-                                print!("{sep}.{alias}", sep = if i > 0 { ", " } else { "" });
-                            }
-                        }
-                        println!(";");
-                    }
-                }
-            }
-            ["config", "editor"] => {
-                println!(
-                    "Choose a preferred text editor for editing instruction-associated scripts.\
-                    Current preferred editor is `{}`.",
-                    self.preferred_editor.as_deref().unwrap_or("<none>")
-                );
-                let mut choices = vec![];
-                for (category, editors) in script::EDITORS_AVAILABLE {
-                    println!("  {category}:");
-                    for editor in *editors {
-                        println!("    {idx}. {editor}", idx = choices.len() + 1);
-                        choices.push(editor);
-                    }
-                }
-                loop {
-                    let input = self.prompt(&format!(
-                        "Enter a number in the range 1..={}",
-                        choices.len()
-                    ));
-
-                    if ["none", "<none>", "0", ""].contains(&input.to_ascii_lowercase().as_str()) {
-                        self.preferred_editor = None;
-                        println!("Resetting to default text editor.");
-                        break;
-                    } else if let Ok(n) = input.parse::<usize>() {
-                        if (1..=choices.len()).contains(&n) {
-                            let choice = choices[n - 1];
-                            self.preferred_editor = Some(choice.to_string());
-                            println!("Preferred editor set to `{choice}`.");
-                            break;
-                        } else {
-                            println!("{} Choice out of valid range.", err_tok());
-                        }
-                    } else {
-                        println!("{} Please enter a positive integer.", err_tok());
-                    }
-                }
-            }
+            ["fields" | "f"] => self.print_fields()?,
+            ["config", "editor"] => self.config_editor()?,
             ["script" | "s", rest @ ..] => {
                 self.edit_script(rest)?;
             }
             ["run" | "r", "script" | "s"] | ["rs"] => {
-                if let Some(instr) = self.program.get(self.instr_ptr()).cloned() {
-                    if let Some(script) = self.instr_scripts.get(instr.instr_name()) {
-                        println!(
-                            "Running script for `{}` instruction...",
-                            instr.instr_name().style(styles::instr())
-                        );
-                        let script = script.clone();
-                        script.exec(self)?;
-                    } else {
-                        println!(
-                            "{} No script found for instruction `{}`.",
-                            err_tok(),
-                            instr.instr_name().style(styles::bad_instr())
-                        );
-                    }
-                } else {
-                    println!(
-                        "{} No instruction found at program index `{}`.",
-                        err_tok(),
-                        self.instr_ptr()
-                    );
-                }
+                self.run_script()?;
             }
             ["del", "script" | "s", instr_name] => {
                 if let Some(script) = self.instr_scripts.remove(*instr_name) {

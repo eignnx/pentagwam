@@ -1,11 +1,124 @@
 use owo_colors::OwoColorize;
 
-use crate::human_powered_vm::script::Script;
-use crate::human_powered_vm::styles::{self, bad_instr, bad_name, err_tok, name, note};
+use crate::human_powered_vm::script::{self, Script};
+use crate::human_powered_vm::styles::{self, bad_instr, bad_name, err_tok, name, note, val, valty};
 use crate::human_powered_vm::{error::Error, error::Result, HumanPoweredVm};
 use crate::vals::{lval::LVal, rval::RVal, slice::Region, val::Val};
 
 impl HumanPoweredVm {
+    pub(super) fn print_fields(&self) -> Result<()> {
+        println!("Virtual Machine Fields:");
+        for (field, fdata) in self.fields.iter() {
+            let decl = format!(
+                "{}: {} = {}",
+                field.style(name()),
+                fdata.ty.style(valty()),
+                self.mem.display(&fdata.value).style(val())
+            );
+            if !fdata.aliases.is_empty() {
+                let joined = fdata
+                    .aliases
+                    .iter()
+                    .map(AsRef::as_ref)
+                    .collect::<Vec<&str>>()
+                    .join(", ");
+                let aliases = format!("aliases: {joined};");
+                println!("\t{decl:<40}{:>40}", aliases.style(note()));
+            } else {
+                println!("\t{decl};");
+            }
+        }
+
+        println!();
+        println!("Temporary Variables:");
+        if self.tmp_vars.is_empty() {
+            println!("\t{}", "No temporary variables defined.".style(note()));
+        } else {
+            for (var_name, fdata) in self.tmp_vars.iter() {
+                print!(
+                    "\t.{}: {} = {}",
+                    var_name.style(name()),
+                    fdata.ty.style(valty()),
+                    self.mem.display(&fdata.value).style(val())
+                );
+                if !fdata.aliases.is_empty() {
+                    print!("\t\taliases: ");
+                    for (i, alias) in fdata.aliases.iter().enumerate() {
+                        print!("{sep}.{alias}", sep = if i > 0 { ", " } else { "" });
+                    }
+                }
+                println!(";");
+            }
+        }
+        Ok(())
+    }
+
+    pub(super) fn config_editor(&mut self) -> Result<()> {
+        println!(
+            "Choose a preferred text editor for editing instruction-associated scripts.\
+                    Current preferred editor is `{}`.",
+            self.preferred_editor.as_deref().unwrap_or("<none>")
+        );
+        let mut choices = vec![];
+        for (category, editors) in script::EDITORS_AVAILABLE {
+            println!("  {category}:");
+            for editor in *editors {
+                println!("    {idx}. {editor}", idx = choices.len() + 1);
+                choices.push(editor);
+            }
+        }
+        loop {
+            let input = self.prompt(&format!(
+                "Enter a number in the range 1..={}",
+                choices.len()
+            ));
+
+            if ["none", "<none>", "0", ""].contains(&input.to_ascii_lowercase().as_str()) {
+                self.preferred_editor = None;
+                println!("Resetting to default text editor.");
+                break;
+            } else if let Ok(n) = input.parse::<usize>() {
+                if (1..=choices.len()).contains(&n) {
+                    let choice = choices[n - 1];
+                    self.preferred_editor = Some(choice.to_string());
+                    println!("Preferred editor set to `{choice}`.");
+                    break;
+                } else {
+                    println!("{} Choice out of valid range.", err_tok());
+                }
+            } else {
+                println!("{} Please enter a positive integer.", err_tok());
+            }
+        }
+        Ok(())
+    }
+
+    pub(super) fn run_script(&mut self) -> Result<()> {
+        if let Some(instr) = self.program.get(self.instr_ptr()).cloned() {
+            if let Some(script) = self.instr_scripts.get(instr.instr_name()) {
+                println!(
+                    "Running script for `{}` instruction...",
+                    instr.instr_name().style(styles::instr())
+                );
+                let script = script.clone();
+                script.exec(self)?;
+            } else {
+                println!(
+                    "{} No script found for instruction `{}`.",
+                    err_tok(),
+                    instr.instr_name().style(styles::bad_instr())
+                );
+            }
+        } else {
+            println!(
+                "{} No instruction found at program index `{}`.",
+                err_tok(),
+                self.instr_ptr()
+            );
+        }
+        Ok(())
+    }
+
     pub(super) fn print_rval(&self, rval: &RVal) -> Result<()> {
         let val = self.eval_to_val(rval)?;
         if let Val::Slice { region, start, len } = val {
