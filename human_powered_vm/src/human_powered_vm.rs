@@ -47,6 +47,8 @@ pub struct HumanPoweredVm {
     #[serde(skip)]
     pub program: Vec<Instr>,
     pub preferred_editor: Option<String>,
+    #[serde(skip)]
+    pub comparison_result: Option<bool>,
 }
 
 #[derive(Debug, Serialize, Deserialize)]
@@ -274,12 +276,6 @@ impl HumanPoweredVm {
                     self.mem.display(&val).style(styles::val())
                 );
             }
-            [lval, "<-", "ask", prompt @ ..] => {
-                let lval: LVal = lval.parse()?;
-                let prompt = prompt.join(" ");
-                let answer = self.prompt(&prompt);
-                self.lval_set(&lval, &RVal::Symbol(answer))?;
-            }
             [_, "=", tm @ ("term" | "tm" | "ask"), ..] => {
                 println!(
                     "{} Use `<lval> {tm} {arr} <rval>` to assign to an l-value.",
@@ -293,6 +289,68 @@ impl HumanPoweredVm {
                     err_tok(),
                     arr = "<-".bright_red()
                 );
+            }
+            ["if" | "when", rval1, "==", rval2, "then", rest @ ..] => {
+                let val1 = self.eval_to_val(&rval1.parse()?)?;
+                let val2 = self.eval_to_val(&rval2.parse()?)?;
+                if val1.dyn_eq(&val2, &self.mem) {
+                    self.comparison_result = Some(true);
+                    let cmd = rest.join(" ");
+                    println!(
+                        ": {cmd:<40}{:>40}",
+                        "(Auto-running command...)".style(note())
+                    );
+                    self.handle_cmd(&cmd)?;
+                } else {
+                    self.comparison_result = Some(false);
+                    println!("=> {}", "Comparison failed.".style(note()));
+                }
+            }
+            ["if" | "when", rval1, "==", rval2] => {
+                let val1 = self.eval_to_val(&rval1.parse()?)?;
+                let val2 = self.eval_to_val(&rval2.parse()?)?;
+                if val1.dyn_eq(&val2, &self.mem) {
+                    self.comparison_result = Some(true);
+                    println!("=> {}", "Equal.".style(note()));
+                } else {
+                    self.comparison_result = Some(false);
+                    println!("=> {}", "Not equal.".style(note()));
+                }
+            }
+            // A continuation of the if body
+            ["then", rest @ ..] => match self.comparison_result {
+                None => {
+                    println!("{} No active comparison result.", err_tok());
+                }
+                Some(true) => {
+                    let cmd = rest.join(" ");
+                    println!(
+                        ": {cmd:<40}{:>40}",
+                        "(Auto-running command...)".style(note())
+                    );
+                    self.handle_cmd(&cmd)?;
+                }
+                Some(false) => {}
+            },
+            ["else", rest @ ..] => match self.comparison_result {
+                None => {
+                    println!("{} No active comparison result.", err_tok());
+                }
+                Some(false) => {
+                    let cmd = rest.join(" ");
+                    println!(
+                        ": {cmd:<40}{:>40}",
+                        "(Auto-running command...)".style(note())
+                    );
+                    self.handle_cmd(&cmd)?;
+                }
+                Some(true) => {}
+            },
+            [lval, "<-", "ask", prompt @ ..] => {
+                let lval: LVal = lval.parse()?;
+                let prompt = prompt.join(" ");
+                let answer = self.prompt(&prompt);
+                self.lval_set(&lval, &RVal::Symbol(answer))?;
             }
             [lval, "<-", "term" | "tm", rest @ ..] => {
                 let term_text: String = rest.join(" ");

@@ -14,7 +14,7 @@ use super::{
 };
 use crate::human_powered_vm::error::{Error, Result};
 
-#[derive(Debug, From, Clone, Serialize, Deserialize)]
+#[derive(Debug, From, Clone, PartialEq, Eq, Serialize, Deserialize)]
 pub enum Val {
     #[from]
     CellRef(CellRef),
@@ -125,6 +125,16 @@ impl Val {
             Val::Functor { sym, arity } => (sym, arity),
             _ => unreachable!(),
         })
+    }
+
+    pub fn dyn_eq(&self, other: &Val, mem: &Mem) -> bool {
+        if let Ok(new_self) = self.try_convert(other.ty(), mem) {
+            &new_self == other
+        } else if let Ok(new_other) = other.try_convert(self.ty(), mem) {
+            self == &new_other
+        } else {
+            false
+        }
     }
 }
 
