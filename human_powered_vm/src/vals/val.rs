@@ -305,10 +305,12 @@ impl Val {
                     expr: self.to_string(),
                 }),
             },
-            Val::Cell(Cell::Sig(_)) => match ty {
-                ValTy::Cell(None) | ValTy::Cell(Some(CellTy::Sig)) | ValTy::Functor => {
-                    Ok(self.clone())
-                }
+            Val::Cell(Cell::Sig(f)) => match ty {
+                ValTy::Cell(None) | ValTy::Cell(Some(CellTy::Sig)) => Ok(self.clone()),
+                ValTy::Functor => Ok(Val::Functor {
+                    sym: f.sym.resolve(mem).to_string(),
+                    arity: f.arity,
+                }),
                 _ => Err(Error::TypeError {
                     expected: ty.to_string(),
                     received: self.ty(),
