@@ -4,6 +4,7 @@ use pentagwam::{
     cell::Functor,
     defs::Sym,
     mem::{DisplayViaMem, Mem},
+    syntax::Term,
 };
 use script::Script;
 use serde::{Deserialize, Serialize};
@@ -152,7 +153,7 @@ impl HumanPoweredVm {
                 println!(
                     "{} {}",
                     format!("instr #{:04}:", self.instr_ptr()).style(note()),
-                    self.mem.display(instr)
+                    self.mem.display(instr).style(styles::instr())
                 );
             } else {
                 println!(
@@ -415,10 +416,13 @@ impl HumanPoweredVm {
                 self.add_alias(new_name, old_name)?;
             }
             [tm @ ("term" | "tm"), rest @ ..] => {
-                // Display a Prolog term
-                let term_text: String = rest.join(" ");
-                let term_parser = pentagwam::syntax::Term::parser();
-                let term = term_parser.parse::<_, &str>(term_text.as_str())?;
+                // Display a Prolog term that's been serialized into memory.
+                let rval_text: String = rest.join(" ");
+                // let term_parser = pentagwam::syntax::Term::parser().then_ignore(end());
+                // let term = term_parser.parse::<_, &str>(term_text.as_str())?;
+                let rval: RVal = rval_text.parse()?;
+                let term_root = self.eval_to_val(&rval)?.try_as_cell_ref(&self.mem)?;
+                let term = Term::deserialize(term_root, &self.mem).unwrap();
                 println!("=> {tm} {term}", tm = tm, term = term.style(val()));
             }
             rval => {

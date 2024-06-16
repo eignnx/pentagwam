@@ -6,6 +6,7 @@ use chumsky::prelude::*;
 use crate::{defs::CellRef, mem::Mem};
 
 pub mod compile;
+pub mod deserialize;
 pub mod serialize;
 
 #[derive(Debug, Clone, PartialEq, Eq, PartialOrd, Ord, Hash)]
