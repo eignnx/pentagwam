@@ -3,7 +3,7 @@ use std::{fmt, ops::ControlFlow};
 use owo_colors::OwoColorize;
 use serde::{Deserialize, Serialize};
 
-use crate::human_powered_vm::styles::err_tok;
+use crate::human_powered_vm::styles::{err_tok, note};
 
 use super::{error::Result, HumanPoweredVm};
 
@@ -39,9 +39,9 @@ impl Script {
                 ScriptLine::Doc(_) => {}
                 ScriptLine::Cmd(cmd) => {
                     println!(
-                        "=> {}{:>40}",
+                        "=> {:<40}{:>40}",
                         cmd.bold().italic(),
-                        "(Auto-running command...)"
+                        "(Auto-running command...)".style(note()),
                     );
                     match hpvm.handle_cmd(cmd) {
                         Ok(ControlFlow::Continue(())) => {}
