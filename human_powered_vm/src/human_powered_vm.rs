@@ -274,7 +274,13 @@ impl HumanPoweredVm {
                     self.mem.display(&val).style(styles::val())
                 );
             }
-            [_, "=", tm @ ("term" | "tm"), ..] => {
+            [lval, "<-", "ask", prompt @ ..] => {
+                let lval: LVal = lval.parse()?;
+                let prompt = prompt.join(" ");
+                let answer = self.prompt(&prompt);
+                self.lval_set(&lval, &RVal::Symbol(answer))?;
+            }
+            [_, "=", tm @ ("term" | "tm" | "ask"), ..] => {
                 println!(
                     "{} Use `<lval> {tm} {arr} <rval>` to assign to an l-value.",
                     err_tok(),
