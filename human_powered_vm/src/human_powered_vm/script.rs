@@ -24,7 +24,7 @@ impl Script {
 
         for line in script_text.lines() {
             if let Some(cmd) = line.strip_prefix(':') {
-                lines.push(ScriptLine::Cmd(cmd.trim().to_string()));
+                lines.push(ScriptLine::Cmd(cmd.to_string()));
             } else {
                 lines.push(ScriptLine::Doc(line.to_string()));
             }
