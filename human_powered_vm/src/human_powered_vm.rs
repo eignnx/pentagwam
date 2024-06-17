@@ -48,7 +48,13 @@ pub struct HumanPoweredVm {
     pub program: Vec<Instr>,
     pub preferred_editor: Option<String>,
     #[serde(skip)]
-    pub comparison_result: Option<bool>,
+    comparison_result: Vec<(Option<bool>, Cond)>,
+}
+
+#[derive(Debug)]
+enum Cond {
+    Consequent,
+    Alternative,
 }
 
 #[derive(Debug, Serialize, Deserialize)]
@@ -180,6 +186,12 @@ impl HumanPoweredVm {
 
     fn handle_cmd(&mut self, cmd: &str) -> Result<ControlFlow<()>> {
         let cmd_split = cmd.split_whitespace().collect::<Vec<_>>();
+
+        if self.conditional_skip(&cmd_split)?.is_break() {
+            // Skip execution of this command.
+            return Ok(ControlFlow::Continue(()));
+        }
+
         match &cmd_split[..] {
             [] => {
                 println!("=> No command entered.");
@@ -290,62 +302,6 @@ impl HumanPoweredVm {
                     arr = "<-".bright_red()
                 );
             }
-            ["if" | "when", rval1, "==", rval2, "then", rest @ ..] => {
-                let val1 = self.eval_to_val(&rval1.parse()?)?;
-                let val2 = self.eval_to_val(&rval2.parse()?)?;
-                if val1.dyn_eq(&val2, &self.mem) {
-                    self.comparison_result = Some(true);
-                    let cmd = rest.join(" ");
-                    println!(
-                        ": {cmd:<40}{:>40}",
-                        "(Auto-running command...)".style(note())
-                    );
-                    self.handle_cmd(&cmd)?;
-                } else {
-                    self.comparison_result = Some(false);
-                    println!("=> {}", "Comparison failed.".style(note()));
-                }
-            }
-            ["if" | "when", rval1, "==", rval2] => {
-                let val1 = self.eval_to_val(&rval1.parse()?)?;
-                let val2 = self.eval_to_val(&rval2.parse()?)?;
-                if val1.dyn_eq(&val2, &self.mem) {
-                    self.comparison_result = Some(true);
-                    println!("=> {}", "Equal.".style(note()));
-                } else {
-                    self.comparison_result = Some(false);
-                    println!("=> {}", "Not equal.".style(note()));
-                }
-            }
-            // A continuation of the if body
-            ["then", rest @ ..] => match self.comparison_result {
-                None => {
-                    println!("{} No active comparison result.", err_tok());
-                }
-                Some(true) => {
-                    let cmd = rest.join(" ");
-                    println!(
-                        ": {cmd:<40}{:>40}",
-                        "(Auto-running command...)".style(note())
-                    );
-                    self.handle_cmd(&cmd)?;
-                }
-                Some(false) => {}
-            },
-            ["else", rest @ ..] => match self.comparison_result {
-                None => {
-                    println!("{} No active comparison result.", err_tok());
-                }
-                Some(false) => {
-                    let cmd = rest.join(" ");
-                    println!(
-                        ": {cmd:<40}{:>40}",
-                        "(Auto-running command...)".style(note())
-                    );
-                    self.handle_cmd(&cmd)?;
-                }
-                Some(true) => {}
-            },
             [lval, "<-", "ask", prompt @ ..] => {
                 let lval: LVal = lval.parse()?;
                 let prompt = prompt.join(" ");
@@ -398,4 +354,67 @@ impl HumanPoweredVm {
     pub fn intern_sym(&self, text: &str) -> Sym {
         self.mem.intern_sym(text)
     }
+
+    fn conditional_skip(&mut self, cmd_split: &[&str]) -> Result<ControlFlow<()>> {
+        match cmd_split {
+            ["if" | "when", rval1, "==", rval2] => {
+                let val1 = self.eval_to_val(&rval1.parse()?)?;
+                let val2 = self.eval_to_val(&rval2.parse()?)?;
+                if val1.dyn_eq(&val2, &self.mem) {
+                    self.comparison_result.push((Some(true), Cond::Consequent));
+                    println!("=> {}", "Equal.".style(note()));
+                } else {
+                    self.comparison_result.push((Some(false), Cond::Consequent));
+                    println!("=> {}", "Not equal.".style(note()));
+                }
+                let depth = self.comparison_result.len();
+                println!(
+                    "=> {}",
+                    format!("Conditional block #{depth} begin.",).style(note())
+                );
+                Ok(ControlFlow::Break(()))
+            }
+            ["else"] => {
+                if let Some((_b, cond)) = self.comparison_result.last_mut() {
+                    *cond = Cond::Alternative;
+                    let depth = self.comparison_result.len();
+                    println!(
+                        "=> {}",
+                        format!("Alternative branch for conditional block #{depth}").style(note())
+                    );
+                    Ok(ControlFlow::Break(()))
+                } else {
+                    println!("{} No matching `if` or `when` block to `else`.", err_tok());
+                    Ok(ControlFlow::Break(()))
+                }
+            }
+            ["end", ..] => {
+                let depth = self.comparison_result.len();
+                println!(
+                    "=> {}",
+                    format!("Conditional block #{depth} end.").style(note())
+                );
+
+                if self.comparison_result.pop().is_none() {
+                    println!("{} No matching `if` or `when` block to `end`.", err_tok());
+                }
+                Ok(ControlFlow::Break(()))
+            }
+            _regular_cmd => {
+                if all_branches_match(&self.comparison_result) {
+                    Ok(ControlFlow::Continue(()))
+                } else {
+                    Ok(ControlFlow::Break(()))
+                }
+            }
+        }
+    }
+}
+
+fn all_branches_match(stack: &[(Option<bool>, Cond)]) -> bool {
+    stack.iter().all(|pair| match pair {
+        (None, _) => false,
+        (Some(true), Cond::Consequent) | (Some(false), Cond::Alternative) => true,
+        (Some(true), Cond::Alternative) | (Some(false), Cond::Consequent) => false,
+    })
 }
