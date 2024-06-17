@@ -110,6 +110,9 @@ impl From<&Constant<String>> for RVal {
 
 impl From<&Functor<String>> for RVal {
     fn from(f: &Functor<String>) -> Self {
-        RVal::Symbol(format!("{}/{}", f.sym, f.arity))
+        RVal::Functor(
+            Box::new(RVal::Symbol(f.sym.clone())),
+            Box::new(RVal::Usize(f.arity as usize)),
+        )
     }
 }
