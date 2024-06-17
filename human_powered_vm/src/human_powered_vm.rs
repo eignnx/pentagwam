@@ -187,9 +187,13 @@ impl HumanPoweredVm {
     fn handle_cmd(&mut self, cmd: &str) -> Result<ControlFlow<()>> {
         let cmd_split = cmd.split_whitespace().collect::<Vec<_>>();
 
-        if self.conditional_skip(&cmd_split)?.is_break() {
-            // Skip execution of this command.
-            return Ok(ControlFlow::Continue(()));
+        match self.conditional_skip(&cmd_split)? {
+            ControlFlow::Break(SkipReason::CmdSkipped) => {
+                println!("=> {}", "Skipping command.".style(note()));
+                return Ok(ControlFlow::Continue(()));
+            }
+            ControlFlow::Break(_) => return Ok(ControlFlow::Continue(())),
+            ControlFlow::Continue(()) => {}
         }
 
         match &cmd_split[..] {
@@ -355,24 +359,28 @@ impl HumanPoweredVm {
         self.mem.intern_sym(text)
     }
 
-    fn conditional_skip(&mut self, cmd_split: &[&str]) -> Result<ControlFlow<()>> {
+    fn conditional_skip(&mut self, cmd_split: &[&str]) -> Result<ControlFlow<SkipReason>> {
         match cmd_split {
             ["if" | "when", rval1, "==", rval2] => {
-                let val1 = self.eval_to_val(&rval1.parse()?)?;
-                let val2 = self.eval_to_val(&rval2.parse()?)?;
-                if val1.dyn_eq(&val2, &self.mem) {
-                    self.comparison_result.push((Some(true), Cond::Consequent));
-                    println!("=> {}", "Equal.".style(note()));
+                if all_branches_match(&self.comparison_result) {
+                    let val1 = self.eval_to_val(&rval1.parse()?)?;
+                    let val2 = self.eval_to_val(&rval2.parse()?)?;
+                    if val1.dyn_eq(&val2, &self.mem) {
+                        self.comparison_result.push((Some(true), Cond::Consequent));
+                        println!("=> {}", "Equal.".style(note()));
+                    } else {
+                        self.comparison_result.push((Some(false), Cond::Consequent));
+                        println!("=> {}", "Not equal.".style(note()));
+                    }
                 } else {
-                    self.comparison_result.push((Some(false), Cond::Consequent));
-                    println!("=> {}", "Not equal.".style(note()));
+                    self.comparison_result.push((None, Cond::Consequent));
                 }
                 let depth = self.comparison_result.len();
                 println!(
                     "=> {}",
                     format!("Conditional block #{depth} begin.",).style(note())
                 );
-                Ok(ControlFlow::Break(()))
+                Ok(ControlFlow::Break(SkipReason::CmdCompleted))
             }
             ["else"] => {
                 if let Some((_b, cond)) = self.comparison_result.last_mut() {
@@ -382,10 +390,10 @@ impl HumanPoweredVm {
                         "=> {}",
                         format!("Alternative branch for conditional block #{depth}").style(note())
                     );
-                    Ok(ControlFlow::Break(()))
+                    Ok(ControlFlow::Break(SkipReason::CmdCompleted))
                 } else {
                     println!("{} No matching `if` or `when` block to `else`.", err_tok());
-                    Ok(ControlFlow::Break(()))
+                    Ok(ControlFlow::Break(SkipReason::Error))
                 }
             }
             ["end", ..] => {
@@ -398,13 +406,13 @@ impl HumanPoweredVm {
                 if self.comparison_result.pop().is_none() {
                     println!("{} No matching `if` or `when` block to `end`.", err_tok());
                 }
-                Ok(ControlFlow::Break(()))
+                Ok(ControlFlow::Break(SkipReason::CmdCompleted))
             }
             _regular_cmd => {
                 if all_branches_match(&self.comparison_result) {
                     Ok(ControlFlow::Continue(()))
                 } else {
-                    Ok(ControlFlow::Break(()))
+                    Ok(ControlFlow::Break(SkipReason::CmdSkipped))
                 }
             }
         }
@@ -417,4 +425,10 @@ fn all_branches_match(stack: &[(Option<bool>, Cond)]) -> bool {
         (Some(true), Cond::Consequent) | (Some(false), Cond::Alternative) => true,
         (Some(true), Cond::Alternative) | (Some(false), Cond::Consequent) => false,
     })
+}
+
+enum SkipReason {
+    CmdCompleted,
+    CmdSkipped,
+    Error,
 }
