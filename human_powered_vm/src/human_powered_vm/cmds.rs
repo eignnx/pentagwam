@@ -93,32 +93,6 @@ impl HumanPoweredVm {
         Ok(())
     }
 
-    pub(super) fn run_script(&mut self) -> Result<()> {
-        if let Some(instr) = self.program.get(self.instr_ptr()).cloned() {
-            if let Some(script) = self.instr_scripts.get(instr.instr_name()) {
-                println!(
-                    "Running script for `{}` instruction...",
-                    instr.instr_name().style(styles::instr())
-                );
-                let script = script.clone();
-                script.exec(self)?;
-            } else {
-                println!(
-                    "{} No script found for instruction `{}`.",
-                    err_tok(),
-                    instr.instr_name().style(styles::bad_instr())
-                );
-            }
-        } else {
-            println!(
-                "{} No instruction found at program index `{}`.",
-                err_tok(),
-                self.instr_ptr()
-            );
-        }
-        Ok(())
-    }
-
     pub(super) fn print_rval(&self, rval: &RVal) -> Result<()> {
         let val = self.eval_to_val(rval)?;
         if let Val::Slice { region, start, len } = val {
@@ -405,16 +379,11 @@ impl HumanPoweredVm {
             .entry(instr_name)
             .or_insert_with_key(|instr_name| {
                 let mut default_text = String::new();
-                default_text += &doc_comment
-                    .unwrap_or_default()
-                    .lines()
-                    .map(|line| format!("# {line}"))
-                    .collect::<Vec<_>>()
-                    .join("\n");
-                default_text += &format!("\n\n# Script for instruction `{instr_name}`\n");
-                default_text += "# Feel free to edit this file however you like.\n";
-                default_text +=
-                    "# Remember to use `$1`, `$2`, etc to refer to the instruction's parameters.\n";
+                default_text += doc_comment.unwrap_or_default();
+                default_text += &format!("\n\nScript for instruction `{instr_name}`\n");
+                default_text += "Feel free to edit this file however you like.\n";
+                default_text += "Remember to use `$1`, `$2`, etc to refer to the \
+                                instruction's parameters.\n";
                 Script::parse(&default_text).unwrap()
             });
 
@@ -424,8 +393,35 @@ impl HumanPoweredVm {
             std::env::set_var("EDITOR", preferred_editor);
         }
         *script = Script::parse(&edit::edit(script.to_string())?)?;
-        println!("```\n{script}\n```");
+        println!("---\n{script}\n---");
 
+        Ok(())
+    }
+
+    pub(super) fn run_script(&mut self) -> Result<()> {
+        if let Some(instr) = self.program.get(self.instr_ptr()).cloned() {
+            if let Some(script) = self.instr_scripts.get(instr.instr_name()) {
+                println!(
+                    "Running script for `{}` instruction...",
+                    instr.instr_name().style(styles::instr())
+                );
+                let script = script.clone(); // `Script` is borrowed from `self`,
+                                             // which is about to be mutably borrowed.
+                script.exec(self)?;
+            } else {
+                println!(
+                    "{} No script found for instruction `{}`.",
+                    err_tok(),
+                    instr.instr_name().style(styles::bad_instr())
+                );
+            }
+        } else {
+            println!(
+                "{} No instruction found at program index `{}`.",
+                err_tok(),
+                self.instr_ptr()
+            );
+        }
         Ok(())
     }
 }
