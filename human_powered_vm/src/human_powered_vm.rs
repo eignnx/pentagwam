@@ -6,13 +6,13 @@ use pentagwam::{
     mem::{DisplayViaMem, Mem},
     syntax::Term,
 };
-use script::Script;
 use serde::{Deserialize, Serialize};
 use std::{
     collections::{BTreeMap, BTreeSet},
     fmt::Display,
     io::{Read, Write},
     ops::ControlFlow,
+    path::PathBuf,
 };
 use styles::{err_tok, instr, note, val};
 
@@ -39,7 +39,6 @@ pub type Instr = pentagwam::bc::instr::Instr<Functor<String>, String>;
 #[derive(Debug, Serialize, Deserialize, Default)]
 pub struct HumanPoweredVm {
     pub fields: BTreeMap<String, FieldData>,
-    pub instr_scripts: BTreeMap<String, Script>,
     #[serde(skip)]
     pub tmp_vars: BTreeMap<String, FieldData>,
     #[serde(skip)]
@@ -78,7 +77,9 @@ impl FieldData {
     }
 }
 
-const SAVE_FILE: &str = concat!(env!("CARGO_MANIFEST_DIR"), "/SAVE.ron");
+const SAVE_DIR: &str = ".hpvm-save";
+const FIELDS_FILE: &str = "fields.ron";
+const SCRIPTS_DIR: &str = "scripts";
 
 impl Drop for HumanPoweredVm {
     fn drop(&mut self) {
@@ -88,11 +89,12 @@ impl Drop for HumanPoweredVm {
                 .struct_names(true)
                 .depth_limit(4),
         )
-        .unwrap();
-        let mut file = std::fs::File::create(SAVE_FILE).unwrap_or_else(|e| {
+        .expect("Serialization to RON failed!");
+
+        self.drop_impl(&self_ron).unwrap_or_else(|e| {
             println!(
-                "{} Could not open save file `{SAVE_FILE}` due to error: {e}",
-                err_tok()
+                "{} Could not save to `{FIELDS_FILE}` due to error: {e}",
+                err_tok(),
             );
             println!("DUMP SAVE DATA:");
             println!("---------------");
@@ -100,13 +102,27 @@ impl Drop for HumanPoweredVm {
             println!("---------------");
             std::process::exit(2);
         });
-        write!(file, "{}", self_ron).unwrap();
     }
 }
 
 impl HumanPoweredVm {
+    pub fn save_dir_location() -> PathBuf {
+        use std::env;
+        PathBuf::from(env::var("HPVM_CWD").unwrap_or(env!("CARGO_MANIFEST_DIR").to_string()))
+            .join(SAVE_DIR)
+    }
+
+    fn drop_impl(&mut self, self_ron: &str) -> Result<()> {
+        use std::fs;
+        fs::create_dir_all(Self::save_dir_location().join(SCRIPTS_DIR))?;
+        let mut file = std::fs::File::create(Self::save_dir_location().join(FIELDS_FILE))?;
+        write!(file, "{self_ron}")?;
+        Ok(())
+    }
+
     pub fn new() -> Result<Self> {
-        match std::fs::File::open(SAVE_FILE) {
+        let fields_file_location = Self::save_dir_location().join(FIELDS_FILE);
+        match std::fs::File::open(&fields_file_location) {
             Ok(mut file) => {
                 let mut buf = String::new();
                 file.read_to_string(&mut buf)?;
@@ -116,8 +132,9 @@ impl HumanPoweredVm {
             }
             Err(e) if e.kind() == std::io::ErrorKind::NotFound => {
                 println!(
-                    "No SAVE.ron save file found. On exit, one will be \
-                     created at: {SAVE_FILE}"
+                    "No `{FIELDS_FILE}` save file found. On exit, one will be \
+                     created at: {}",
+                    fields_file_location.display()
                 );
                 Ok(Default::default())
             }
@@ -126,6 +143,8 @@ impl HumanPoweredVm {
     }
 
     fn populate_default_field_values(&mut self) {
+        self.setup_builtin_fields();
+
         // We'd like for the Deserialize implementation to look at the `ValTy`
         // of the field and generate a default based on that, but I don't know
         // how to do that. So we'll just post-process a bit.
@@ -135,8 +154,6 @@ impl HumanPoweredVm {
                 .clone()
                 .unwrap_or_else(|| data.ty.default_val(&self.mem));
         }
-
-        self.setup_default_fields();
     }
 
     pub fn load_program(&mut self, program: Vec<Instr>) -> &mut Self {
@@ -238,18 +255,25 @@ impl HumanPoweredVm {
                 self.run_script()?;
             }
             ["del", "script" | "s", instr_name] => {
-                if let Some(script) = self.instr_scripts.remove(*instr_name) {
-                    println!(
-                        "{}",
-                        format!("Deleted script for instruction `{instr_name}`.").style(note()),
-                    );
-                    println!("```\n{script}\n```");
+                if let Ok(instr_name) = instr_name.parse() {
+                    if let Ok(script) = self.delete_script_file(instr_name) {
+                        println!(
+                            "{}",
+                            format!("Deleted script for instruction `{instr_name}`.").style(note()),
+                        );
+                        println!("---\n{script}\n---");
+                    } else {
+                        println!(
+                            "{} Could not find an existing script for `{}`.",
+                            err_tok(),
+                            instr_name.style(instr())
+                        );
+                    }
                 } else {
                     println!(
-                        "{} Could not find an existing script for `{}`.",
-                        err_tok(),
-                        instr_name.style(instr())
-                    );
+                        "{} `{instr_name}` is not a valid instruction name.",
+                        err_tok()
+                    )
                 }
             }
             ["list" | "l", rest @ ..] => {

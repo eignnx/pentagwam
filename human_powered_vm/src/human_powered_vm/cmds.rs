@@ -335,10 +335,10 @@ impl HumanPoweredVm {
     }
 
     pub(super) fn edit_script(&mut self, rest: &[&str]) -> Result<()> {
-        let (instr_name, doc_comment) = match rest {
+        let instr_name = match rest {
             [] => {
                 if let Some(instr) = self.program.get(self.instr_ptr()) {
-                    (instr.instr_name().to_string(), instr.doc_comment())
+                    instr.instr_name()
                 } else {
                     println!(
                         "{}",
@@ -349,12 +349,8 @@ impl HumanPoweredVm {
             }
             [instr_name] => {
                 // Check that it's a valid instruction name.
-                if let Some(instr) = self
-                    .program
-                    .iter()
-                    .find(|instr| instr.instr_name() == *instr_name)
-                {
-                    (instr_name.to_string(), instr.doc_comment())
+                if let Ok(instr_name) = instr_name.parse() {
+                    instr_name
                 } else {
                     println!(
                         "{} The name `{}` is not a valid instruction name.",
@@ -374,46 +370,66 @@ impl HumanPoweredVm {
             }
         };
 
-        let script = self
-            .instr_scripts
-            .entry(instr_name)
-            .or_insert_with_key(|instr_name| {
-                let mut default_text = String::new();
-                default_text += doc_comment.unwrap_or_default();
-                default_text += &format!("\n\nScript for instruction `{instr_name}`\n");
-                default_text += "Feel free to edit this file however you like.\n";
-                default_text += "Remember to use `$1`, `$2`, etc to refer to the \
-                                instruction's parameters.\n";
-                Script::parse(&default_text).unwrap()
-            });
-
         println!("{}", "Opening associated script in editor...".dimmed());
         println!();
+
         if let Some(preferred_editor) = &self.preferred_editor {
             std::env::set_var("EDITOR", preferred_editor);
         }
-        *script = Script::parse(&edit::edit(script.to_string())?)?;
-        println!("---\n{script}\n---");
+
+        if !Self::script_file_exists(instr_name) {
+            let mut default_text = String::new();
+            default_text += &instr_name
+                .doc_comment()
+                .map(|s| format!("> {s}\n"))
+                .unwrap_or_default();
+            default_text += "\n";
+            default_text += &format!("# Script for instruction `{instr_name}`\n");
+            default_text += "Feel free to edit this file however you like.\n";
+            default_text += "Remember to use `$1`, `$2`, etc to refer to the \
+                                instruction's parameters.\n";
+            default_text += "\n```r\n";
+            default_text += "<your script here>";
+            default_text += "\n```\n";
+            self.write_script_file(instr_name, &default_text)?;
+        }
+
+        edit::edit_file(Self::script_file(instr_name))?;
+
+        let new_script = self
+            .read_script_file(instr_name)?
+            .expect("just written to, must be readable");
+
+        println!("---\n{new_script}\n---");
 
         Ok(())
     }
 
     pub(super) fn run_script(&mut self) -> Result<()> {
         if let Some(instr) = self.program.get(self.instr_ptr()).cloned() {
-            if let Some(script) = self.instr_scripts.get(instr.instr_name()) {
-                println!(
-                    "Running script for `{}` instruction...",
-                    instr.instr_name().style(styles::instr())
-                );
-                let script = script.clone(); // `Script` is borrowed from `self`,
-                                             // which is about to be mutably borrowed.
-                script.exec(self)?;
-            } else {
-                println!(
-                    "{} No script found for instruction `{}`.",
-                    err_tok(),
-                    instr.instr_name().style(styles::bad_instr())
-                );
+            match self.read_script_file(instr.instr_name()) {
+                Ok(Some(script_text)) => {
+                    println!(
+                        "Running script for `{}` instruction...",
+                        instr.instr_name().style(styles::instr())
+                    );
+
+                    Script::parse(&script_text)?.exec(self)?;
+                }
+                Ok(None) => {
+                    println!(
+                        "{} No script found for instruction `{}`. Use the `script` command to create a script.",
+                        err_tok(),
+                        instr.instr_name().style(styles::bad_instr())
+                    );
+                }
+                Err(e) => {
+                    println!(
+                        "{} No script found for instruction `{}` due to error: {e}",
+                        err_tok(),
+                        instr.instr_name().style(styles::bad_instr())
+                    );
+                }
             }
         } else {
             println!(

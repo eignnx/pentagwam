@@ -1,11 +1,10 @@
-use std::{fmt, ops::ControlFlow};
+use std::{fmt, fs, io, ops::ControlFlow, path::PathBuf};
 
-use owo_colors::OwoColorize;
+use pentagwam::bc::instr::InstrName;
 use serde::{Deserialize, Serialize};
 
+use super::{error::Result, HumanPoweredVm, SCRIPTS_DIR};
 use crate::human_powered_vm::styles::{err_tok, note};
-
-use super::{error::Result, HumanPoweredVm};
 
 #[derive(Debug, Clone, Serialize, Deserialize, Default)]
 pub struct Script {
@@ -23,7 +22,7 @@ impl Script {
         let mut sections = vec![];
 
         for line in script_text.lines() {
-            if line.trim() == "```" {
+            if line.starts_with("```") {
                 match sections.last_mut() {
                     None => sections.push(ScriptSection::Cmd(String::new())),
                     Some(ScriptSection::Doc(_)) => sections.push(ScriptSection::Cmd(String::new())),
@@ -44,6 +43,8 @@ impl Script {
     }
 
     pub fn exec(&self, hpvm: &mut HumanPoweredVm) -> Result<()> {
+        use owo_colors::OwoColorize;
+
         for (i, section) in self.sections.iter().enumerate() {
             match section {
                 ScriptSection::Doc(_) => {}
@@ -86,7 +87,7 @@ impl fmt::Display for Script {
         for section in &self.sections {
             match section {
                 ScriptSection::Doc(lines) => write!(f, "{lines}")?,
-                ScriptSection::Cmd(lines) => write!(f, "```\n{lines}```")?,
+                ScriptSection::Cmd(lines) => write!(f, "```r\n{lines}```")?,
             }
         }
         Ok(())
@@ -143,3 +144,39 @@ pub static EDITORS_AVAILABLE: &[(&str, &[&str])] = &[
     ),
     ("Generic \"file openers\"", &["cmd.exe /C start"]),
 ];
+
+impl HumanPoweredVm {
+    pub fn script_file(instr_name: InstrName) -> PathBuf {
+        Self::save_dir_location()
+            .join(SCRIPTS_DIR)
+            .join(instr_name.to_string() + ".md")
+    }
+
+    pub fn script_file_exists(instr_name: InstrName) -> bool {
+        !fs::File::open(Self::script_file(instr_name))
+            .is_err_and(|e| e.kind() == std::io::ErrorKind::NotFound)
+    }
+
+    pub fn read_script_file(&self, instr_name: InstrName) -> io::Result<Option<String>> {
+        match fs::read_to_string(Self::script_file(instr_name)) {
+            Err(e) if e.kind() == io::ErrorKind::NotFound => Ok(None),
+            Err(e) => Err(e),
+            Ok(content) => Ok(Some(content)),
+        }
+    }
+
+    pub fn write_script_file(&self, instr_name: InstrName, content: &str) -> io::Result<()> {
+        use io::Write;
+        let mut f = fs::File::create(Self::script_file(instr_name))?;
+        write!(f, "{content}")?;
+        f.sync_data()?;
+        Ok(())
+    }
+
+    pub fn delete_script_file(&self, instr_name: InstrName) -> io::Result<String> {
+        let script_file = Self::script_file(instr_name);
+        let content = std::fs::read_to_string(&script_file)?;
+        fs::remove_file(&script_file)?;
+        Ok(content)
+    }
+}

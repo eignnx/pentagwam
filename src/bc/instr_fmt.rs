@@ -6,6 +6,8 @@ use crate::{
     mem::{DisplayViaMem, Mem},
 };
 
+use super::instr::InstrName;
+
 impl<S: DisplayViaMem> DisplayViaMem for Functor<S> {
     fn display_via_mem(&self, f: &mut core::fmt::Formatter<'_>, mem: &Mem) -> core::fmt::Result {
         write!(f, "{}/{}", mem.display(&self.sym), self.arity)
@@ -13,29 +15,29 @@ impl<S: DisplayViaMem> DisplayViaMem for Functor<S> {
 }
 
 impl<L, S> Instr<L, S> {
-    pub fn instr_name(&self) -> &'static str {
+    pub fn instr_name(&self) -> InstrName {
         match self {
-            Instr::SwitchOnTerm { .. } => "switch_on_term",
-            Instr::TryMeElse(..) => "try_me_else",
-            Instr::TrustMeElse(..) => "trust_me_else",
-            Instr::Call { .. } => "call",
-            Instr::Execute(..) => "execute",
-            Instr::Proceed => "proceed",
-            Instr::PutVariable(..) => "put_variable",
-            Instr::PutValue { .. } => "put_value",
-            Instr::PutConst(..) => "put_const",
-            Instr::PutNil(..) => "put_nil",
-            Instr::PutStructure(..) => "put_structure",
-            Instr::PutList(..) => "put_list",
-            Instr::GetConst(..) => "get_const",
-            Instr::GetNil(..) => "get_nil",
-            Instr::GetList(..) => "get_list",
-            Instr::GetValue(..) => "get_value",
-            Instr::GetVoid => "get_void",
-            Instr::GetVariable(..) => "get_variable",
-            Instr::GetStructure(..) => "get_structure",
-            Instr::UnifyVariable(..) => "unify_variable",
-            Instr::UnifyValue(..) => "unify_value",
+            Instr::SwitchOnTerm { .. } => InstrName::SwitchOnTerm,
+            Instr::TryMeElse(..) => InstrName::TryMeElse,
+            Instr::TrustMeElse(..) => InstrName::TrustMeElse,
+            Instr::Call { .. } => InstrName::Call,
+            Instr::Execute(..) => InstrName::Execute,
+            Instr::Proceed => InstrName::Proceed,
+            Instr::PutVariable(..) => InstrName::PutVariable,
+            Instr::PutValue { .. } => InstrName::PutValue,
+            Instr::PutConst(..) => InstrName::PutConst,
+            Instr::PutNil(..) => InstrName::PutNil,
+            Instr::PutStructure(..) => InstrName::PutStructure,
+            Instr::PutList(..) => InstrName::PutList,
+            Instr::GetConst(..) => InstrName::GetConst,
+            Instr::GetNil(..) => InstrName::GetNil,
+            Instr::GetList(..) => InstrName::GetList,
+            Instr::GetValue(..) => InstrName::GetValue,
+            Instr::GetVoid => InstrName::GetVoid,
+            Instr::GetVariable(..) => InstrName::GetVariable,
+            Instr::GetStructure(..) => InstrName::GetStructure,
+            Instr::UnifyVariable(..) => InstrName::UnifyVariable,
+            Instr::UnifyValue(..) => InstrName::UnifyValue,
         }
     }
 }
@@ -83,5 +85,12 @@ impl<L: fmt::Display, S: DisplayViaMem> DisplayViaMem for Instr<L, S> {
             Instr::TryMeElse(lbl) => write!(f, "{name} {lbl}"),
             Instr::TrustMeElse(lbl) => write!(f, "{name} {lbl}"),
         }
+    }
+}
+
+impl fmt::Display for InstrName {
+    fn fmt(&self, f: &mut fmt::Formatter<'_>) -> fmt::Result {
+        use heck::ToSnakeCase;
+        write!(f, "{}", format!("{self:?}").to_snake_case())
     }
 }

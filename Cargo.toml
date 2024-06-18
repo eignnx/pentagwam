@@ -10,6 +10,8 @@ derive_more = "0.99.17"
 documented = "0.4.3"
 tracing = "0.1.40"
 serde = { version = "1", features = ["derive"] }
+heck = "0.5.0"
+enum-ordinalize = "4.3.0"
 
 [dev-dependencies]
 tracing-subscriber = { version = "0.3", default-features = false, features = [

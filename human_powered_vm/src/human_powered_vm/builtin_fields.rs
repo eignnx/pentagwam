@@ -9,7 +9,7 @@ use crate::{
 };
 
 impl HumanPoweredVm {
-    pub(super) fn setup_default_fields(&mut self) {
+    pub(super) fn setup_builtin_fields(&mut self) {
         // Instruction pointer
         self.fields.insert(
             "instr_ptr".to_owned(),
@@ -37,6 +37,7 @@ impl HumanPoweredVm {
         *self.heap_ptr_mut() = (self.mem.heap.len() - 1).into();
     }
 
+    #[track_caller]
     pub fn instr_ptr(&self) -> usize {
         self.fields
             .get("instr_ptr")
@@ -46,6 +47,7 @@ impl HumanPoweredVm {
             .expect("builtin `instr_ptr` field is not a usize")
     }
 
+    #[track_caller]
     pub fn instr_ptr_mut(&mut self) -> &mut usize {
         let Val::Usize(ref mut u) = self
             .fields
@@ -58,6 +60,7 @@ impl HumanPoweredVm {
         u
     }
 
+    #[track_caller]
     pub(super) fn heap_ptr(&self) -> CellRef {
         self.fields
             .get("heap_ptr")
@@ -67,6 +70,7 @@ impl HumanPoweredVm {
             .expect("builtin `heap_ptr` field is not a CellRef")
     }
 
+    #[track_caller]
     pub(super) fn heap_ptr_mut(&mut self) -> &mut CellRef {
         let Val::CellRef(ref mut u) = self
             .fields
