@@ -379,18 +379,27 @@ impl HumanPoweredVm {
 
         if !Self::script_file_exists(instr_name) {
             let mut default_text = String::new();
-            default_text += &instr_name
-                .doc_comment()
-                .map(|s| format!("> {s}\n"))
-                .unwrap_or_default();
-            default_text += "\n";
-            default_text += &format!("# Script for instruction `{instr_name}`\n");
+            default_text += &format!("# Script for Instruction `{instr_name}`\n");
             default_text += "Feel free to edit this file however you like.\n";
             default_text += "Remember to use `$1`, `$2`, etc to refer to the \
                                 instruction's parameters.\n";
-            default_text += "\n```r\n";
-            default_text += "<your script here>";
-            default_text += "\n```\n";
+            default_text += "\n";
+            default_text += "```r\n";
+            default_text += "<your script here>\n";
+            default_text += "```\n";
+            default_text += "\n";
+            default_text += "# Documentation\n";
+            default_text += &instr_name
+                .doc_comment()
+                .map(|comment| {
+                    comment
+                        .lines()
+                        .map(|line| format!("> {line}"))
+                        .collect::<Vec<_>>()
+                        .join("\n")
+                })
+                .unwrap_or_default();
+
             self.write_script_file(instr_name, &default_text)?;
         }
 
