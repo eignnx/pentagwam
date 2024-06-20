@@ -48,6 +48,7 @@ pub struct HumanPoweredVm {
     pub preferred_editor: Option<String>,
     #[serde(skip)]
     branch_stack: Vec<(Option<bool>, Cond)>,
+    arenas: BTreeMap<String, Vec<Val>>,
 }
 
 #[derive(Debug)]
