@@ -47,7 +47,7 @@ pub struct HumanPoweredVm {
     pub program: Vec<Instr>,
     pub preferred_editor: Option<String>,
     #[serde(skip)]
-    comparison_result: Vec<(Option<bool>, Cond)>,
+    branch_stack: Vec<(Option<bool>, Cond)>,
 }
 
 #[derive(Debug)]
@@ -386,20 +386,20 @@ impl HumanPoweredVm {
     fn conditional_skip(&mut self, cmd_split: &[&str]) -> Result<ControlFlow<SkipReason>> {
         match cmd_split {
             ["if" | "when", rval1, "==", rval2] => {
-                if all_branches_match(&self.comparison_result) {
+                if all_branches_match(&self.branch_stack) {
                     let val1 = self.eval_to_val(&rval1.parse()?)?;
                     let val2 = self.eval_to_val(&rval2.parse()?)?;
                     if val1.dyn_eq(&val2, &self.mem) {
-                        self.comparison_result.push((Some(true), Cond::Consequent));
+                        self.branch_stack.push((Some(true), Cond::Consequent));
                         println!("=> {}", "Equal.".style(note()));
                     } else {
-                        self.comparison_result.push((Some(false), Cond::Consequent));
+                        self.branch_stack.push((Some(false), Cond::Consequent));
                         println!("=> {}", "Not equal.".style(note()));
                     }
                 } else {
-                    self.comparison_result.push((None, Cond::Consequent));
+                    self.branch_stack.push((None, Cond::Consequent));
                 }
-                let depth = self.comparison_result.len();
+                let depth = self.branch_stack.len();
                 println!(
                     "=> {}",
                     format!("Conditional block #{depth} begin.",).style(note())
@@ -407,9 +407,9 @@ impl HumanPoweredVm {
                 Ok(ControlFlow::Break(SkipReason::CmdCompleted))
             }
             ["else"] => {
-                if let Some((_b, cond)) = self.comparison_result.last_mut() {
+                if let Some((_b, cond)) = self.branch_stack.last_mut() {
                     *cond = Cond::Alternative;
-                    let depth = self.comparison_result.len();
+                    let depth = self.branch_stack.len();
                     println!(
                         "=> {}",
                         format!("Alternative branch for conditional block #{depth}").style(note())
@@ -421,19 +421,19 @@ impl HumanPoweredVm {
                 }
             }
             ["end", ..] => {
-                let depth = self.comparison_result.len();
+                let depth = self.branch_stack.len();
                 println!(
                     "=> {}",
                     format!("Conditional block #{depth} end.").style(note())
                 );
 
-                if self.comparison_result.pop().is_none() {
+                if self.branch_stack.pop().is_none() {
                     println!("{} No matching `if` or `when` block to `end`.", err_tok());
                 }
                 Ok(ControlFlow::Break(SkipReason::CmdCompleted))
             }
             _regular_cmd => {
-                if all_branches_match(&self.comparison_result) {
+                if all_branches_match(&self.branch_stack) {
                     Ok(ControlFlow::Continue(()))
                 } else {
                     Ok(ControlFlow::Break(SkipReason::CmdSkipped))
