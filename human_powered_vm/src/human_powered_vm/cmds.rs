@@ -5,6 +5,8 @@ use crate::human_powered_vm::styles::{self, bad_instr, bad_name, err_tok, name, 
 use crate::human_powered_vm::{error::Error, error::Result, HumanPoweredVm};
 use crate::vals::{lval::LVal, rval::RVal, slice::Region, val::Val};
 
+use super::array::Array;
+
 impl HumanPoweredVm {
     pub(super) fn print_fields(&self) -> Result<()> {
         println!("Virtual Machine Fields:");
@@ -30,6 +32,22 @@ impl HumanPoweredVm {
         }
 
         println!();
+        println!("Arrays:");
+        if self.save.array_decls.is_empty() {
+            println!("\t{}", "No arrays declared.".style(note()));
+        } else {
+            for (array_id, array) in self.save.array_decls.iter() {
+                println!(
+                    "\t{array_id}. {name}: {Array}({Val} x {len});",
+                    name = array.name.style(name()),
+                    Array = "Array".style(valty()),
+                    Val = "Val".style(valty()),
+                    len = array.len.style(val()),
+                );
+            }
+        }
+
+        println!();
         println!("Temporary Variables:");
         if self.tmp_vars.is_empty() {
             println!("\t{}", "No temporary variables defined.".style(note()));
@@ -50,6 +68,47 @@ impl HumanPoweredVm {
                 println!(";");
             }
         }
+
+        Ok(())
+    }
+
+    pub(super) fn declare_array(&mut self, name: &str, size: &str) -> Result<()> {
+        if name.is_empty()
+            || !name.chars().next().unwrap().is_alphabetic()
+            || !name.chars().all(|ch| ch.is_alphanumeric() || ch == '_')
+        {
+            println!(
+                "{} Invalid array name `{name}`.",
+                err_tok(),
+                name = name.style(bad_name())
+            );
+            return Ok(());
+        }
+
+        if self.save.array_decls.values().any(|arr| arr.name == name) {
+            println!(
+                "{} Array `{name}` has already been declared.",
+                err_tok(),
+                name = name.style(bad_name())
+            );
+            return Ok(());
+        }
+
+        let id = self.save.array_decls.len();
+        self.save.array_decls.insert(
+            id,
+            Array {
+                name: name.to_owned(),
+                len: size.parse()?,
+            },
+        );
+
+        println!(
+            "Declared array `{name}` with size {size}.",
+            name = name.style(styles::name()),
+            size = size.style(val())
+        );
+
         Ok(())
     }
 

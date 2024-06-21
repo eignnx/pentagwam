@@ -1,4 +1,4 @@
-HumanPoweredVm(
+SaveData(
     fields: {
         "X1": FieldData(
             ty: CellRef,
@@ -58,4 +58,10 @@ HumanPoweredVm(
         ),
     },
     preferred_editor: Some("notepad.exe"),
+    array_decls: {
+        0: Array(
+            name: "trail",
+            len: 128,
+        ),
+    },
 )

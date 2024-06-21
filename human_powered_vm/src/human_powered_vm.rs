@@ -14,17 +14,23 @@ use std::{
     ops::ControlFlow,
     path::PathBuf,
 };
-use styles::{err_tok, instr, note, val};
 
-use crate::human_powered_vm::error::{Error, Result};
-use crate::vals::{
-    lval::LVal,
-    rval::RVal,
-    slice::{Idx, Len, Slice},
-    val::Val,
-    valty::ValTy,
+use crate::{
+    human_powered_vm::{
+        array::Array,
+        error::{Error, Result},
+        styles::{err_tok, instr, note, val},
+    },
+    vals::{
+        lval::LVal,
+        rval::RVal,
+        slice::{Idx, Len, Slice},
+        val::Val,
+        valty::ValTy,
+    },
 };
 
+pub mod array;
 pub mod builtin_fields;
 pub mod cmds;
 pub mod error;
@@ -40,6 +46,7 @@ pub type Instr = pentagwam::bc::instr::Instr<Functor<String>, String>;
 pub struct SaveData {
     pub fields: BTreeMap<String, FieldData>,
     pub preferred_editor: Option<String>,
+    pub array_decls: BTreeMap<usize, Array>,
 }
 
 impl SaveData {
@@ -297,6 +304,9 @@ impl HumanPoweredVm {
                     }),
                 );
                 self.print_rval(&sliced)?;
+            }
+            [name, "<-", "array", size] => {
+                self.declare_array(name, size)?;
             }
             ["next" | "n"] => {
                 *self.instr_ptr_mut() += 1;
