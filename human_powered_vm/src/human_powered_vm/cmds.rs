@@ -8,7 +8,7 @@ use crate::vals::{lval::LVal, rval::RVal, slice::Region, val::Val};
 impl HumanPoweredVm {
     pub(super) fn print_fields(&self) -> Result<()> {
         println!("Virtual Machine Fields:");
-        for (field, fdata) in self.fields.iter() {
+        for (field, fdata) in self.save.fields.iter() {
             let decl = format!(
                 "{}: {} = {}",
                 field.style(name()),
@@ -57,7 +57,7 @@ impl HumanPoweredVm {
         println!(
             "Choose a preferred text editor for editing instruction-associated scripts.\
                     Current preferred editor is `{}`.",
-            self.preferred_editor.as_deref().unwrap_or("<none>")
+            self.save.preferred_editor.as_deref().unwrap_or("<none>")
         );
         let mut choices = vec![];
         for (category, editors) in script::EDITORS_AVAILABLE {
@@ -74,13 +74,13 @@ impl HumanPoweredVm {
             ));
 
             if ["none", "<none>", "0", ""].contains(&input.to_ascii_lowercase().as_str()) {
-                self.preferred_editor = None;
+                self.save.preferred_editor = None;
                 println!("Resetting to default text editor.");
                 break;
             } else if let Ok(n) = input.parse::<usize>() {
                 if (1..=choices.len()).contains(&n) {
                     let choice = choices[n - 1];
-                    self.preferred_editor = Some(choice.to_string());
+                    self.save.preferred_editor = Some(choice.to_string());
                     println!("Preferred editor set to `{choice}`.");
                     break;
                 } else {
@@ -213,6 +213,7 @@ impl HumanPoweredVm {
         } else {
             // Check that the alias doesn't already exist.
             if let Some(existing_name) = self
+                .save
                 .fields
                 .iter()
                 .find_map(|(name, fdata)| fdata.aliases.contains(new_name).then_some(name))
@@ -229,7 +230,7 @@ impl HumanPoweredVm {
                 return Ok(());
             }
 
-            if let Some(fdata) = self.fields.get_mut(old_name) {
+            if let Some(fdata) = self.save.fields.get_mut(old_name) {
                 // Check that `new_name` doesn't begin with a dot.
                 if new_name.starts_with('.') {
                     println!(
@@ -245,6 +246,7 @@ impl HumanPoweredVm {
                     new_name = new_name.style(name()),
                 );
             } else if let Some((field_name, fdata)) = self
+                .save
                 .fields
                 .iter_mut()
                 .find(|(_, fdata)| fdata.aliases.contains(old_name))
@@ -310,11 +312,11 @@ impl HumanPoweredVm {
                     name.style(bad_name()),
                 );
             }
-        } else if self.fields.remove(name).is_some() {
+        } else if self.save.fields.remove(name).is_some() {
             println!("Deleted field `{}`.", name.style(bad_name()));
         } else {
             // check aliases
-            for (field, fdata) in self.fields.iter_mut() {
+            for (field, fdata) in self.save.fields.iter_mut() {
                 if fdata.aliases.remove(name) {
                     println!(
                         "Deleted alias `{}` of field `{}`.",
@@ -373,7 +375,7 @@ impl HumanPoweredVm {
         println!("{}", "Opening associated script in editor...".dimmed());
         println!();
 
-        if let Some(preferred_editor) = &self.preferred_editor {
+        if let Some(preferred_editor) = &self.save.preferred_editor {
             std::env::set_var("EDITOR", preferred_editor);
         }
 

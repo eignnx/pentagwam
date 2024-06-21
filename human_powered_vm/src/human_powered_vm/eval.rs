@@ -37,11 +37,12 @@ impl HumanPoweredVm {
             RVal::Cell(c) => Ok(Val::Cell(self.eval_cellval_to_cell(c)?)),
             RVal::CellRef(r) => Ok(Val::CellRef(*r)),
             RVal::Field(field) => {
-                if let Some(fdata) = self.fields.get(field) {
+                if let Some(fdata) = self.save.fields.get(field) {
                     Ok(fdata.value.clone())
                 } else {
                     // check aliases:
-                    self.fields
+                    self.save
+                        .fields
                         .values()
                         .find_map(|fdata| {
                             if fdata.aliases.contains(field) {
@@ -367,7 +368,7 @@ impl HumanPoweredVm {
             // some_field <- <rval>
             // some_field_alias <- <rval>
             LVal::Field(field) => {
-                if let Some(fdata) = self.fields.get_mut(field) {
+                if let Some(fdata) = self.save.fields.get_mut(field) {
                     fdata.assign_val(rhs.clone(), &self.mem)?;
                     println!(
                         "Wrote `{}` to `{}`.",
@@ -375,6 +376,7 @@ impl HumanPoweredVm {
                         field.style(name())
                     );
                 } else if let Some((base_name, fdata)) = self
+                    .save
                     .fields
                     .iter_mut()
                     .find(|(_base_name, fdata)| fdata.aliases.contains(field))
@@ -388,7 +390,7 @@ impl HumanPoweredVm {
                     );
                 } else {
                     // It must be a new field.
-                    self.fields.insert(
+                    self.save.fields.insert(
                         field.to_string(),
                         FieldData {
                             value: rhs.clone(),

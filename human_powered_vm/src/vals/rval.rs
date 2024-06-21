@@ -56,7 +56,8 @@ impl RVal {
             RVal::Index(..) => ValTy::Cell(None),
             RVal::CellRef(_) => ValTy::CellRef,
             RVal::Field(field) => {
-                hpvm.fields
+                hpvm.save
+                    .fields
                     .get(field)
                     .ok_or(Error::UndefinedField(field.clone()))?
                     .ty

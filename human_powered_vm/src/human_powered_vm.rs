@@ -37,16 +37,33 @@ pub mod styles;
 pub type Instr = pentagwam::bc::instr::Instr<Functor<String>, String>;
 
 #[derive(Debug, Serialize, Deserialize, Default)]
-pub struct HumanPoweredVm {
+pub struct SaveData {
     pub fields: BTreeMap<String, FieldData>,
-    #[serde(skip)]
-    pub tmp_vars: BTreeMap<String, FieldData>,
-    #[serde(skip)]
-    pub mem: Mem,
-    #[serde(skip)]
-    pub program: Vec<Instr>,
     pub preferred_editor: Option<String>,
-    #[serde(skip)]
+}
+
+impl SaveData {
+    fn populate_default_field_values(&mut self, mem: &Mem) {
+        self.setup_builtin_fields();
+
+        // We'd like for the Deserialize implementation to look at the `ValTy`
+        // of the field and generate a default based on that, but I don't know
+        // how to do that. So we'll just post-process a bit.
+        for (_field, data) in self.fields.iter_mut() {
+            data.value = data
+                .default
+                .clone()
+                .unwrap_or_else(|| data.ty.default_val(mem));
+        }
+    }
+}
+
+#[derive(Debug, Default)]
+pub struct HumanPoweredVm {
+    pub save: SaveData,
+    pub tmp_vars: BTreeMap<String, FieldData>,
+    pub mem: Mem,
+    pub program: Vec<Instr>,
     branch_stack: Vec<(Option<bool>, Cond)>,
 }
 
@@ -84,7 +101,7 @@ const SCRIPTS_DIR: &str = "scripts";
 impl Drop for HumanPoweredVm {
     fn drop(&mut self) {
         let self_ron = ron::ser::to_string_pretty(
-            &self,
+            &self.save,
             ron::ser::PrettyConfig::default()
                 .struct_names(true)
                 .depth_limit(4),
@@ -126,9 +143,16 @@ impl HumanPoweredVm {
             Ok(mut file) => {
                 let mut buf = String::new();
                 file.read_to_string(&mut buf)?;
-                let mut vm: Self = ron::from_str(&buf)?;
-                vm.populate_default_field_values();
-                Ok(vm)
+                let mut save: SaveData = ron::from_str(&buf)?;
+                let mem = Mem::new();
+                save.populate_default_field_values(&mem);
+                Ok(Self {
+                    save,
+                    mem,
+                    tmp_vars: Default::default(),
+                    program: Default::default(),
+                    branch_stack: Default::default(),
+                })
             }
             Err(e) if e.kind() == std::io::ErrorKind::NotFound => {
                 println!(
@@ -139,20 +163,6 @@ impl HumanPoweredVm {
                 Ok(Default::default())
             }
             Err(e) => Err(e.into()),
-        }
-    }
-
-    fn populate_default_field_values(&mut self) {
-        self.setup_builtin_fields();
-
-        // We'd like for the Deserialize implementation to look at the `ValTy`
-        // of the field and generate a default based on that, but I don't know
-        // how to do that. So we'll just post-process a bit.
-        for (_field, data) in self.fields.iter_mut() {
-            data.value = data
-                .default
-                .clone()
-                .unwrap_or_else(|| data.ty.default_val(&self.mem));
         }
     }
 
